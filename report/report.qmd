@@ -16,39 +16,119 @@ format:
   .metric-grid .card { border: 1px solid #ddd; border-radius: 6px; padding: 0.75rem; background: #fafafa; }
   .metric-grid .card .label { font-size: 0.8rem; color: #555; }
   .metric-grid .card .value { font-family: ui-monospace, monospace; font-size: 1.2rem; }
+  .callout-note-lite { border-left: 3px solid #4c78a8; background: #f3f7fb; padding: 0.6rem 0.9rem; margin: 0.8rem 0; font-size: 0.95rem; }
+  .legend-table { font-size: 0.9rem; margin: 0.5rem 0 1rem; }
+  .legend-table td:first-child { font-family: ui-monospace, monospace; padding-right: 0.8rem; }
 </style>
 ```
 
-This notebook reads JSON artifacts emitted by the TypeScript simulator
-(`npm run simulate -- --seed 42 && npm run sweep -- --seed 42`) and renders
-them interactively. All Monte Carlo computation happens in TypeScript — the
-notebook only visualises.
+## Overview
+
+This notebook is the **Phase B** companion to `research-note.md`. It reproduces
+the §2–§5 closed-form P&L moments, estimates the §4 tail-risk metrics by Monte
+Carlo, and lets the reader explore the `(α, μ, σ)` grid interactively. All
+Monte Carlo computation happens in TypeScript (`src/`); this page only reads
+the emitted JSON and visualises it.
+
+Regenerate the data before previewing:
+
+```sh
+npm run simulate -- --seed 42
+npm run sweep -- --seed 42
+```
+
+::: {.callout-note-lite}
+**What you will see below.** Four kinds of plots: (1) a scorecard table of
+closed-form vs Monte Carlo P&L moments with tail metrics, (2) overlaid P&L
+distributions for the three stochastic models, (3) diagnostics on the shared
+random kernel `I_T := ∫₀ᵀ S_t dt`, and (4) parameter sweeps showing how tail
+risk and the break-even quote `Q*` respond to drift `μ`, volatility `σ`, and
+hedge ratio `α`.
+:::
+
+### Notation cheat-sheet
+
+A brief reminder of the symbols used throughout (full derivations in
+`research-note.md` §1–§5):
+
+| Symbol | Meaning | Units |
+| --- | --- | --- |
+| `S_t` | kVCM / USD spot price at time `t` | USD / kVCM |
+| `P` | protocol price (constant) | kVCM / tonne |
+| `π_t := P·S_t` | USD protocol price per tonne | USD / tonne |
+| `λ` | deterministic retirement flow | tonnes / year |
+| `T` | horizon | years |
+| `N := λ·T` | total tonnes retired over `[0,T]` | tonnes |
+| `f` | fee rate | dimensionless |
+| `Q` | fixed USD quote per tonne (principal model) | USD / tonne |
+| `α ∈ [0,1]` | pre-purchase (hedge) fraction | dimensionless |
+| `I_T := ∫₀ᵀ S_t dt` | time-integral of GBM, the shared random kernel | (USD/kVCM)·year |
+| `R_fee = f·P·λ·I_T` | fee-based revenue | USD |
+| `Π_b2b = Q·N − P·λ·I_T` | back-to-back (α=0) P&L | USD |
+| `Π_matched = N·(Q − P·S_0)` | matched pre-purchase (α=1), deterministic | USD |
+| `Π_α = (1−α)·Π_b2b + α·Π_matched` | partial pre-purchase (α∈[0,1]) | USD |
+| `Q* = (1+f)·P·S_0·(e^{μT}−1)/(μT)` | break-even quote equating `E[Π_b2b] = E[R_fee]` | USD / tonne |
 
 ## Single-run outputs
+
+Loaded from `data/run-42.json` — produced by `npm run simulate -- --seed 42`.
 
 ```{ojs}
 //| echo: false
 run = FileAttachment("data/run-42.json").json()
 ```
 
+### Run parameters
+
+The scorecard below echoes the parameters used for this run. `Q*` is the
+closed-form break-even quote — if `Q` matches `Q*` the fee-based and
+back-to-back principal books have equal expected P&L (but not equal
+distributions, per §5).
+
 ```{ojs}
 //| echo: false
 html`<div class="metric-grid">
-  <div class="card"><div class="label">Paths</div><div class="value">${run.params.nPaths.toLocaleString()}</div></div>
-  <div class="card"><div class="label">Steps</div><div class="value">${run.params.nSteps}</div></div>
-  <div class="card"><div class="label">μ</div><div class="value">${run.params.mu}</div></div>
-  <div class="card"><div class="label">σ</div><div class="value">${run.params.sigma}</div></div>
-  <div class="card"><div class="label">Q</div><div class="value">${run.params.Q}</div></div>
-  <div class="card"><div class="label">α</div><div class="value">${run.params.alpha}</div></div>
+  <div class="card"><div class="label">Monte Carlo paths</div><div class="value">${run.params.nPaths.toLocaleString()}</div></div>
+  <div class="card"><div class="label">Time steps / path</div><div class="value">${run.params.nSteps}</div></div>
+  <div class="card"><div class="label">μ (drift, /yr)</div><div class="value">${run.params.mu}</div></div>
+  <div class="card"><div class="label">σ (vol, /√yr)</div><div class="value">${run.params.sigma}</div></div>
+  <div class="card"><div class="label">T (horizon, yr)</div><div class="value">${run.params.T}</div></div>
+  <div class="card"><div class="label">λ (tonnes/yr)</div><div class="value">${run.params.lambda.toLocaleString()}</div></div>
+  <div class="card"><div class="label">f (fee rate)</div><div class="value">${run.params.f}</div></div>
+  <div class="card"><div class="label">Q (USD/tonne)</div><div class="value">${run.params.Q}</div></div>
+  <div class="card"><div class="label">α (hedge ratio)</div><div class="value">${run.params.alpha}</div></div>
   <div class="card"><div class="label">Q* (break-even)</div><div class="value">${run.closed.QStar.toFixed(4)}</div></div>
 </div>`
 ```
 
 ### §4 — P&L moments: closed-form vs Monte Carlo
 
-The MC column should land within the ±95% CI of the closed-form mean. The
-`z` column is `(MC − closed) / stderr`; for large `nPaths`, |z| should rarely
-exceed 2.
+Each row is one of the four models from the research note. The first block
+of columns cross-checks the Monte Carlo mean against the Dufresne-based
+closed form: `±CI95` is the ±95% half-width of the MC mean, and `z` is
+`(MC − closed) / stderr`. For large `nPaths` the MC mean should land within
+its own CI and `|z|` should rarely exceed 2. The second block of columns
+reports the risk quantities the closed form does not cover — empirical VaR,
+CVaR, loss probability, and the Sharpe-like ratio `E[Π] / SD[Π]`. All P&L
+numbers are USD over the horizon `T`.
+
+<div class="legend-table">
+
+| column | meaning |
+| --- | --- |
+| `E[Π] (cf) / (mc)` | expected P&L — closed form vs Monte Carlo |
+| `±CI95` | ±95% half-width of the MC mean |
+| `SD (cf) / (mc)` | standard deviation of P&L |
+| `z` | `(MC−cf) / stderr`; MC sanity check |
+| `VaR95 / VaR99` | loss threshold exceeded with 5% / 1% probability |
+| `CVaR95 / CVaR99` | expected loss in the worst 5% / 1% tail |
+| `P[Π<0]` | probability of a losing realisation |
+| `Sharpe` | `E[Π] / SD[Π]`, invariant under `f`-scaling for fee model |
+
+</div>
+
+`principal_3a` is deterministic at horizon, so SD, CI95, and z are zero by
+construction; VaR/CVaR simply reflect the sign of the matched P&L.
 
 ```{ojs}
 //| echo: false
@@ -88,6 +168,20 @@ Inputs.table(run.rows, {
 
 ### P&L distributions
 
+Each panel is one stochastic model's empirical density of terminal P&L,
+from a sub-sampled Monte Carlo cloud. The vertical black rule is the
+closed-form mean `E[Π]`; the dashed grey rule is `Π = 0`, so the mass to
+the left of it is the loss probability reported in the table.
+
+- **Fee book** (`R_fee = f·P·λ·I_T`): non-negative by construction, so mass
+  sits entirely in the right half-plane. Distribution is right-skewed — a
+  rescaled image of the `I_T` distribution.
+- **Principal 3b** (back-to-back, α = 0): linear *decreasing* in `I_T`, so
+  the same kernel produces a left-skewed loss tail. Upside is capped at
+  `Q·N` (reached as `S_t → 0`), downside is unbounded.
+- **Principal 3c** (partial, α = 0.5 in this run): variance scales as
+  `(1−α)²` relative to 3b, so the density is narrower.
+
 ```{ojs}
 //| echo: false
 pnlData = [
@@ -101,11 +195,15 @@ pnlData = [
 //| echo: false
 Plot.plot({
   width: 900,
-  height: 360,
-  marginLeft: 60,
-  x: { label: "P&L, USD" },
-  y: { label: "density" },
-  color: { legend: true, domain: ["fee","principal_3b","principal_3c"] },
+  height: 420,
+  marginLeft: 70,
+  marginRight: 30,
+  marginBottom: 50,
+  grid: true,
+  x: { label: "terminal P&L Π  (USD)", labelAnchor: "center", labelOffset: 36, tickFormat: "~s" },
+  y: { label: "empirical density", labelAnchor: "center" },
+  fy: { label: "model" },
+  color: { legend: true, domain: ["fee","principal_3b","principal_3c"], label: "model" },
   marks: [
     Plot.ruleY([0]),
     Plot.ruleX([0], { stroke: "#888", strokeDasharray: "2 4" }),
@@ -116,9 +214,17 @@ Plot.plot({
 })
 ```
 
-The black rule on each panel is `E[Π]` from the closed-form column.
+_Solid black rule on each panel: closed-form `E[Π]`. Dashed grey rule:
+break-even `Π = 0`._
 
 ### I_T histogram vs. Dufresne closed-form moments
+
+`I_T := ∫₀ᵀ S_t dt` is the shared random kernel driving both the fee book
+and the principal back-to-back book. Its first two moments are known in
+closed form (Dufresne, 2001), but the distribution itself is not log-normal,
+so tail quantities must be estimated numerically. This plot is a Monte Carlo
+histogram of `I_T` — the solid rule verifies that the empirical mean matches
+Dufresne's `E[I_T] = S_0·(e^{μT}−1)/μ`; the dashed rules sit at `E[I_T] ± SD`.
 
 ```{ojs}
 //| echo: false
@@ -135,12 +241,15 @@ itHist = {
 //| echo: false
 Plot.plot({
   width: 720,
-  height: 300,
-  x: { label: "I_T" },
-  y: { label: "empirical density" },
+  height: 320,
+  marginLeft: 70,
+  marginBottom: 50,
+  grid: true,
+  x: { label: "I_T = ∫₀ᵀ S_t dt   ((USD/kVCM)·year)", labelAnchor: "center", labelOffset: 36 },
+  y: { label: "empirical density", labelAnchor: "center" },
   marks: [
     Plot.rectY(itHist, { x1: "x0", x2: "x1", y: "density", fill: "#4c78a8", fillOpacity: 0.7 }),
-    Plot.ruleX([run.closed.IT.mean], { stroke: "black" }),
+    Plot.ruleX([run.closed.IT.mean], { stroke: "black", strokeWidth: 2 }),
     Plot.ruleX([run.closed.IT.mean - Math.sqrt(run.closed.IT.variance),
                 run.closed.IT.mean + Math.sqrt(run.closed.IT.variance)],
                { stroke: "black", strokeDasharray: "3 3" })
@@ -148,9 +257,23 @@ Plot.plot({
 })
 ```
 
-Solid rule: E[I_T] (Dufresne). Dashed rules: E[I_T] ± SD.
+_Solid black: `E[I_T]` (Dufresne closed form). Dashed black: `E[I_T] ± SD[I_T]`._
 
-### Sample GBM paths (N·P-scaled NAV view)
+### Sample GBM paths — matched-book NAV view (§3a)
+
+The Phase A note defines the mark-to-market inventory value for the fully
+matched pre-purchase book (α = 1) as
+
+```
+V_t = (N · P) · (1 − t/T) · S_t.
+```
+
+This is a scaled GBM attenuated by the linear burn schedule. `V_0 = N·P·S_0`
+is the purchase cost; `V_T = 0` because inventory has been fully retired by
+the horizon. The plot shows a handful of sampled paths of `V_t` — the
+highlighted orange line is the first path, the grey lines are the rest.
+Interim drawdowns in `V_t` are the solvency concern even though terminal
+P&L is deterministic.
 
 ```{ojs}
 //| echo: false
@@ -168,37 +291,66 @@ pathRecords = run.sampledPaths.flatMap((path, idx) =>
 //| echo: false
 Plot.plot({
   width: 900,
-  height: 360,
-  x: { label: "t / T" },
-  y: { label: "V_t (3a matched-book NAV), USD" },
+  height: 380,
+  marginLeft: 80,
+  marginBottom: 50,
+  grid: true,
+  x: { label: "normalised time  t / T", labelAnchor: "center", labelOffset: 36, domain: [0, 1] },
+  y: { label: "V_t  =  N·P·(1−t/T)·S_t    (USD)", labelAnchor: "center", tickFormat: "~s" },
   marks: [
     Plot.ruleY([0]),
     Plot.line(pathRecords, { x: "t", y: "V", z: "id", stroke: "#888", strokeOpacity: 0.3 }),
-    Plot.line(pathRecords.filter(r => r.id === 0), { x: "t", y: "V", stroke: "#c94" })
+    Plot.line(pathRecords.filter(r => r.id === 0), { x: "t", y: "V", stroke: "#c94", strokeWidth: 2 })
   ]
 })
 ```
 
-### NAV shortfall-vs-schedule (§3a)
+_Grey lines: sampled Monte Carlo NAV paths. Orange line: the first path,
+highlighted for visibility. `V_T` is pinned to zero by the burn schedule
+regardless of `S_T`._
+
+### NAV shortfall vs. schedule (§3a)
+
+For the matched book, a meaningful solvency statistic is the worst
+_shortfall against the expected decay schedule_:
+
+```
+D := max_{t ≤ T}  [ N·P·(1 − t/T) · (S_0 − S_t) ]₊
+```
+
+i.e., the deepest excursion of `V_t` below its pre-hedged deterministic
+path. This histogram is the empirical distribution of `D` across paths.
+Values on the x-axis are USD losses relative to schedule.
 
 ```{ojs}
 //| echo: false
 Plot.plot({
   width: 720,
-  height: 280,
-  x: { label: "max_t  [N·P·(1−t/T)·(S_0−S_t)]+" },
-  y: { label: "frequency" },
+  height: 320,
+  marginLeft: 70,
+  marginBottom: 50,
+  grid: true,
+  x: { label: "max_t [N·P·(1−t/T)·(S_0−S_t)]₊   (USD shortfall)", labelAnchor: "center", labelOffset: 36, tickFormat: "~s" },
+  y: { label: "number of paths", labelAnchor: "center" },
   marks: [
-    Plot.rectY(run.sampleTraces.navDrawdown, Plot.binX({y:"count"}, {x: d => d, fill:"#e45"})),
-    Plot.ruleX([run.drawdown.var95], { stroke: "black", strokeDasharray: "3 3" }),
-    Plot.ruleX([run.drawdown.var99], { stroke: "black" })
+    Plot.rectY(run.sampleTraces.navDrawdown, Plot.binX({y:"count"}, {x: d => d, fill:"#e45", fillOpacity: 0.8})),
+    Plot.ruleX([run.drawdown.var95], { stroke: "black", strokeDasharray: "3 3", strokeWidth: 2 }),
+    Plot.ruleX([run.drawdown.var99], { stroke: "black", strokeWidth: 2 })
   ]
 })
 ```
 
-Dashed rule: 95th percentile. Solid: 99th.
+_Dashed black: 95th percentile of the shortfall distribution. Solid black:
+99th percentile. These are the natural stress thresholds for the matched
+book even though its terminal P&L is deterministic._
 
 ## Parameter sweep
+
+Loaded from `data/sweep.json` — a grid of Monte Carlo runs over
+`(α, μ, σ)`. Use the controls below to slice the grid. The plots below
+track `CVaR95` for the **principal 3c** (partial pre-purchase) book:
+CVaR95 is the expected loss in the worst 5% of outcomes, so larger values
+are worse. All P&L sweep quantities are in USD.
 
 ```{ojs}
 //| echo: false
@@ -207,13 +359,19 @@ sweep = FileAttachment("data/sweep.json").json()
 
 ```{ojs}
 //| echo: false
-viewof pickAlpha = Inputs.range([0,1], { step: 0.25, value: 0.5, label: "α" })
+viewof pickAlpha = Inputs.range([0,1], { step: 0.25, value: 0.5, label: "hedge ratio α" })
 ```
 
 ```{ojs}
 //| echo: false
-viewof pickMu = Inputs.select(sweep.grid.mus, { value: 0.05, label: "μ" })
+viewof pickMu = Inputs.select(sweep.grid.mus, { value: 0.05, label: "drift μ (/yr)" })
 ```
+
+### Tail risk vs volatility σ  (fixed α, μ)
+
+Holding `α` and `μ` fixed at the values chosen above, this line shows how
+the CVaR95 of the 3c book grows with volatility `σ`. The relationship is
+roughly monotone: more kVCM vol → a fatter left tail on P&L.
 
 ```{ojs}
 //| echo: false
@@ -224,17 +382,32 @@ filteredBySigma = sweep.cells.filter(c => c.alpha === pickAlpha && c.mu === pick
 //| echo: false
 Plot.plot({
   width: 860,
-  height: 340,
-  marginLeft: 60,
-  x: { label: "σ", type: "linear" },
-  y: { label: "CVaR95 (3c partial)", zero: true },
+  height: 360,
+  marginLeft: 80,
+  marginBottom: 55,
+  grid: true,
+  x: { label: "volatility σ   (annualised)", labelAnchor: "center", labelOffset: 36, type: "linear" },
+  y: { label: "CVaR95 of Π (principal 3c)   (USD)", labelAnchor: "center", zero: true, tickFormat: "~s" },
   marks: [
     Plot.ruleY([0]),
-    Plot.line(filteredBySigma, { x: "sigma", y: d => d.partial.cvar95, stroke: "#c53" }),
-    Plot.dot(filteredBySigma, { x: "sigma", y: d => d.partial.cvar95, fill: "#c53" })
+    Plot.line(filteredBySigma, { x: "sigma", y: d => d.partial.cvar95, stroke: "#c53", strokeWidth: 2 }),
+    Plot.dot(filteredBySigma, { x: "sigma", y: d => d.partial.cvar95, fill: "#c53", r: 4 })
   ]
 })
 ```
+
+_Sensitivity of the 3c tail to `σ` at the selected `(α, μ)`. A monotone rise
+is the expected signature — vol directly inflates `Var[I_T]` and hence the
+tail of `Π_α`._
+
+### Tail risk vs hedge ratio α  (fixed μ, σ at grid[1])
+
+This slice fixes `μ` at the selected value and `σ` at the **second** grid
+value, then sweeps `α` from 0 (fully back-to-back) to 1 (fully matched).
+Since `Var[Π_α] = (1−α)² · Var[Π_b2b]`, the CVaR95 curve should collapse
+quadratically toward zero as `α → 1` — this is the visual confirmation
+that pre-purchasing inventory is the natural hedge for the back-to-back
+book.
 
 ```{ojs}
 //| echo: false
@@ -245,18 +418,34 @@ byAlpha = sweep.cells.filter(c => c.mu === pickMu && c.sigma === sweep.grid.sigm
 //| echo: false
 Plot.plot({
   width: 860,
-  height: 340,
-  x: { label: "α" },
-  y: { label: "CVaR95 (principal 3c)", zero: true },
-  caption: "Hedge ratio α vs tail risk — fixed μ selected above, σ = second grid value",
+  height: 360,
+  marginLeft: 80,
+  marginBottom: 55,
+  grid: true,
+  caption: "Hedge ratio α vs tail risk. Fixed μ (selected above), σ = second grid value. At α = 1 the book is deterministic so CVaR95 collapses to the sign of the matched P&L.",
+  x: { label: "hedge ratio α   (0 = back-to-back, 1 = fully matched)", labelAnchor: "center", labelOffset: 36, domain: [0, 1] },
+  y: { label: "CVaR95 of Π (principal 3c)   (USD)", labelAnchor: "center", zero: true, tickFormat: "~s" },
   marks: [
-    Plot.line(byAlpha, { x: "alpha", y: d => d.partial.cvar95, stroke: "#35a" }),
-    Plot.dot(byAlpha, { x: "alpha", y: d => d.partial.cvar95, fill: "#35a" })
+    Plot.ruleY([0]),
+    Plot.line(byAlpha, { x: "alpha", y: d => d.partial.cvar95, stroke: "#35a", strokeWidth: 2 }),
+    Plot.dot(byAlpha, { x: "alpha", y: d => d.partial.cvar95, fill: "#35a", r: 4 })
   ]
 })
 ```
 
 ## Break-even quote surface Q*(μ, T)
+
+`Q*` is the USD quote that equalises the *expected* P&L of the
+back-to-back principal book with the fee-based book:
+
+```
+Q* = (1 + f) · P · S_0 · (e^{μT} − 1) / (μ T).
+```
+
+Normalising by `(1+f)·P·S_0` removes the trivial scaling and leaves only
+the drift-horizon shape `(e^{μT}−1)/(μT)`. The dashed horizontal rule is
+the `μ = 0` limit: at zero drift, `Q* = (1+f)·P·S_0`, i.e. the fee-based
+time-zero quote.
 
 ```{ojs}
 //| echo: false
@@ -273,12 +462,15 @@ qstarRecords = qstar.mus.flatMap((mu, i) =>
 ```{ojs}
 //| echo: false
 Plot.plot({
-  width: 720,
-  height: 360,
-  marginLeft: 60,
-  x: { label: "T (years)" },
-  y: { label: "Q* / ((1+f)·P·S_0)" },
-  color: { legend: true, label: "μ" },
+  width: 760,
+  height: 400,
+  marginLeft: 80,
+  marginRight: 120,
+  marginBottom: 55,
+  grid: true,
+  x: { label: "horizon T   (years)", labelAnchor: "center", labelOffset: 36 },
+  y: { label: "Q*  /  ((1+f)·P·S₀)     (dimensionless)", labelAnchor: "center" },
+  color: { legend: true, label: "drift μ (/yr)", scheme: "viridis", type: "ordinal" },
   marks: [
     Plot.ruleY([1], { stroke: "#888", strokeDasharray: "2 4" }),
     Plot.line(qstarRecords, {
@@ -290,11 +482,26 @@ Plot.plot({
     Plot.dot(qstarRecords, {
       x: "T",
       y: d => d.Q / ((1 + run.params.f) * run.params.P * run.params.S0),
-      fill: "mu"
+      fill: "mu",
+      r: 3
     })
   ]
 })
 ```
 
-The μ = 0 curve collapses onto the dashed unit line — at zero drift,
-`Q* = (1+f)·P·S_0`, i.e., the fee-based time-zero quote.
+_Curves for each drift `μ` in the grid. Positive drift lifts `Q*` above the
+fee-based quote (principal must charge more to compensate for expected
+kVCM appreciation); negative drift pushes it below. The `μ = 0` curve
+collapses onto the dashed unit line._
+
+## Reading notes
+
+- All closed-form / Monte Carlo agreement checks live in the `z` column of
+  the §4 table — a single glance should tell you whether the MC is
+  well-converged at the current `nPaths`.
+- The fee and back-to-back books share the *same* random kernel `I_T`, so
+  variance ratios are exact algebraic multiples (`(P/f)²`) — deviations
+  would indicate a simulator bug.
+- This notebook is Phase B; Phase C extensions (jump diffusion, Poisson
+  demand, historical calibration, dynamic hedging) are intentionally out
+  of scope here.
