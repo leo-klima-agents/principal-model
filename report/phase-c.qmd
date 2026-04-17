@@ -610,11 +610,15 @@ parameters as the sliders in the left pane.
 
 ::: {.callout-note-lite}
 **How the curve is used.** The drawn values $\tilde S_0, \tilde S_1,
-\ldots, \tilde S_n$ replace the GBM sample path. Integrals are computed
-by the trapezoid rule on the same grid ($I_T = \int_0^T \tilde S_t\,dt$,
-tail integral over $[\tau T, T]$), and $\tilde S_T$ is read off the last
-point. All book formulas are identical to the MC ones; only the price
-path differs.
+\ldots, \tilde S_n$ define the base trajectory. If the noise variance
+$\sigma^2_{\mathrm{noise}}$ is positive, each step is multiplied by an
+accumulated log-normal shock
+$\exp\!\big(\sigma_{\mathrm{noise}}\sqrt{dt}\,Z_k - \tfrac12
+\sigma^2_{\mathrm{noise}}\,dt\big)$ (reusing the Phase C MC seed so runs
+are reproducible). Integrals on that realised path are computed by the
+trapezoid rule ($I_T = \int_0^T S_t\,dt$, tail integral over $[\tau T,
+T]$), and $S_T$ is read off the last point. All book formulas are
+identical to the MC ones; only the price path differs.
 :::
 
 ```{=html}
@@ -631,6 +635,11 @@ path differs.
 ```{ojs}
 //| echo: false
 viewof curveYMax = Inputs.range([0.01, 3], { step: 0.005, value: 0.2, label: "canvas y-max (USD / kVCM)" })
+```
+
+```{ojs}
+//| echo: false
+viewof curveVar = Inputs.range([0, 2.5], { step: 0.005, value: 0, label: "noise variance σ² (annualised)" })
 ```
 
 ```{ojs}
@@ -845,17 +854,34 @@ viewof customCurve = {
 ```{ojs}
 //| echo: false
 customScenario = {
-  const { values, nPoints } = customCurve;
+  const { values: base, nPoints } = customCurve;
   const T = derived.T;
   const P = derived.P;
   const lam = derived.lambda;
   const N = derived.N;
   const dt = T / (nPoints - 1);
+  const sigmaN = Math.sqrt(curveVar);
+
+  // Realised path = drawn curve * accumulated log-normal noise.
+  // Noise is zero-drift (−½σ² dt correction) so the mean is the drawn curve.
+  const realised = new Float64Array(nPoints);
+  if (sigmaN === 0) {
+    for (let k = 0; k < nPoints; k++) realised[k] = base[k];
+  } else {
+    const rng = makeRng(seed);
+    let logNoise = 0;
+    realised[0] = base[0];
+    for (let k = 1; k < nPoints; k++) {
+      const z = rng.normal();
+      logNoise += sigmaN * Math.sqrt(dt) * z - 0.5 * sigmaN * sigmaN * dt;
+      realised[k] = base[k] * Math.exp(logNoise);
+    }
+  }
 
   let IT = 0;
   for (let k = 0; k < nPoints; k++) {
     const w = (k === 0 || k === nPoints - 1) ? 0.5 : 1;
-    IT += w * values[k];
+    IT += w * realised[k];
   }
   IT *= dt;
 
@@ -867,23 +893,67 @@ customScenario = {
   let tailInt = 0;
   for (let k = tailStartIdx; k < nPoints; k++) {
     const w = (k === tailStartIdx || k === nPoints - 1) ? 0.5 : 1;
-    tailInt += w * values[k];
+    tailInt += w * realised[k];
   }
   tailInt *= dt;
 
-  const ST = values[nPoints - 1];
+  const ST = realised[nPoints - 1];
   const tokensLeftover = Math.max(0, kPre - lam * T * P);
   const feeRev = fee * P * lam * IT;
   const b2b = Q * N - P * lam * IT;
   const cust = Q * N - cBasis - P * lam * tailInt + tokensLeftover * ST;
 
-  const maxS = values.reduce((a, b) => Math.max(a, b), 0);
-  const minS = values.reduce((a, b) => Math.min(a, b), Infinity);
+  let maxS = -Infinity, minS = Infinity;
+  for (let k = 0; k < nPoints; k++) {
+    if (realised[k] > maxS) maxS = realised[k];
+    if (realised[k] < minS) minS = realised[k];
+  }
   const meanS = IT / T;
 
-  return { IT, tailInt, ST, tauFrac, tokensLeftover, feeRev, b2b, cust, maxS, minS, meanS };
+  return { base, realised, nPoints, IT, tailInt, ST, tauFrac, tokensLeftover, feeRev, b2b, cust, maxS, minS, meanS };
 }
 ```
+
+```{ojs}
+//| echo: false
+customPathRecords = {
+  const { base, realised, nPoints } = customScenario;
+  const rows = [];
+  const noisy = curveVar > 0;
+  for (let k = 0; k < nPoints; k++) {
+    const tDays = (k / (nPoints - 1)) * Tdays;
+    rows.push({ t: tDays, S: base[k], kind: "drawn (base)" });
+    if (noisy) rows.push({ t: tDays, S: realised[k], kind: "realised (+ noise)" });
+  }
+  return rows;
+}
+```
+
+```{ojs}
+//| echo: false
+Plot.plot({
+  width: 820,
+  height: 200,
+  marginLeft: 58,
+  marginBottom: 32,
+  grid: true,
+  x: { label: "t (days)", domain: [0, Tdays] },
+  y: { label: "S_t (USD / kVCM)", zero: true, tickFormat: "~g" },
+  color: {
+    legend: true,
+    domain: ["drawn (base)", "realised (+ noise)"],
+    range: ["#c94", "#4c78a8"],
+  },
+  marks: [
+    Plot.ruleY([0]),
+    Plot.line(customPathRecords, { x: "t", y: "S", stroke: "kind", strokeOpacity: d => d.kind === "drawn (base)" ? 1 : 0.7 }),
+  ],
+})
+```
+
+_Orange: the curve you drew. Blue (when $\sigma^2_{\mathrm{noise}} > 0$):
+the realised noisy path actually fed into the integrals. Change the PRNG
+seed in the left pane to cycle through different noise realisations._
 
 ```{ojs}
 //| echo: false
