@@ -625,8 +625,8 @@ identical to the MC ones; only the price path differs.
 <style>
   .pc-curve-box { border: 1px solid #ddd; border-radius: 8px; background: #fafafa; padding: 0.75rem 1rem 1rem; margin: 0.75rem 0; }
   .pc-curve-toolbar { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0 0 0.6rem; align-items: center; }
-  .pc-curve-toolbar button { padding: 0.3rem 0.7rem; border: 1px solid #bbb; background: #fff; border-radius: 4px; cursor: pointer; font-size: 0.85rem; }
-  .pc-curve-toolbar button:hover { background: #eef; }
+  .pc-curve-toolbar button { padding: 0.3rem 0.7rem; border: 1px solid #888; background: #fff; color: #111; border-radius: 4px; cursor: pointer; font-size: 0.85rem; font-weight: 500; }
+  .pc-curve-toolbar button:hover { background: #eef; border-color: #555; }
   .pc-curve-toolbar .hint { font-size: 0.82rem; color: #666; margin-left: auto; }
   .pc-curve-canvas { display: block; max-width: 100%; height: auto; touch-action: none; cursor: crosshair; background: #fff; border: 1px solid #ccc; border-radius: 6px; }
 </style>
@@ -640,6 +640,11 @@ viewof curveYMax = Inputs.range([0.01, 3], { step: 0.005, value: 0.2, label: "ca
 ```{ojs}
 //| echo: false
 viewof curveVar = Inputs.range([0, 2.5], { step: 0.005, value: 0, label: "noise variance σ² (annualised)" })
+```
+
+```{ojs}
+//| echo: false
+viewof curveSeed = Inputs.bind(Inputs.range([1, 9999], { step: 1, label: "PRNG seed" }), viewof seed)
 ```
 
 ```{ojs}
@@ -953,7 +958,8 @@ Plot.plot({
 
 _Orange: the curve you drew. Blue (when $\sigma^2_{\mathrm{noise}} > 0$):
 the realised noisy path actually fed into the integrals. Change the PRNG
-seed in the left pane to cycle through different noise realisations._
+seed (either slider — they're synchronised) to cycle through different
+noise realisations._
 
 ```{ojs}
 //| echo: false
