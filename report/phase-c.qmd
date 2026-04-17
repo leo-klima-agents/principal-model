@@ -16,12 +16,25 @@ format:
   .phase-c-derived .card .label { font-size: 0.8rem; color: #555; }
   .phase-c-derived .card .value { font-family: ui-monospace, monospace; font-size: 1.1rem; }
 
-  /* Controls panel: lives in Quarto's `.column-margin` so the prose column
-     stays centred. Sticky so it tracks the reader as they scroll. */
-  .pc-controls {
+  /* Section layout: controls in a left rail that's sticky across the whole
+     section; body content keeps Quarto's default column width. The .pc-section
+     grid escapes to screen width via .column-screen-inset, with the sidebar
+     sitting in left whitespace rather than stealing room from the text. */
+  .pc-section {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 320px 1.5rem minmax(0, 850px) minmax(0, 1fr);
+    align-items: start;
+  }
+  .pc-section > * { grid-column: 4; min-width: 0; }
+  .pc-section > .pc-controls {
+    grid-column: 2;
+    grid-row: 1 / -1;
     position: sticky; top: 0.75rem;
+    align-self: start;
     max-height: calc(100vh - 1.5rem);
     overflow-y: auto;
+  }
+  .pc-controls {
     padding: 0.75rem 1rem 1rem;
     border: 1px solid #ddd; border-radius: 8px; background: #fafafa;
     font-size: 0.85rem;
@@ -34,6 +47,11 @@ format:
     min-width: 90px; max-width: 130px;
     white-space: normal !important;
     line-height: 1.2;
+  }
+  /* Narrow screens: drop the grid, unstick the controls. */
+  @media (max-width: 1100px) {
+    .pc-section { display: block; }
+    .pc-section > .pc-controls { position: static; max-height: none; }
   }
 
   .pc-readout { display: grid; grid-template-columns: 1fr 1fr; gap: 0.3rem 0.6rem; margin: 0.4rem 0 0.2rem; font-size: 0.8rem; }
@@ -70,7 +88,9 @@ k / (N \cdot P),\; \text{basis} = \alpha \cdot N \cdot P \cdot S_0)$
 parametrisation is a special case of the new one.
 :::
 
-::: {.column-margin .pc-controls}
+:::: {.pc-section .column-screen-inset}
+
+::: {.pc-controls}
 ### Price process
 
 ```{ojs}
@@ -587,6 +607,8 @@ highlighted. Green dashed rule: time at which the pre-purchased inventory
 is exhausted — to the right of this line, retirements are sourced at
 spot._
 
+::::
+
 ## Custom price curve scenario
 
 The Monte Carlo above averages over a GBM's random futures. Sometimes you
@@ -636,7 +658,9 @@ historicalPrices = {
 }
 ```
 
-::: {.column-margin .pc-controls}
+:::: {.pc-section .column-screen-inset}
+
+::: {.pc-controls}
 All sliders below mirror the ones in the previous section — moving either
 copy updates both, so the drawn-curve scenario and the Monte Carlo above
 stay on the same parameter set.
@@ -1087,6 +1111,8 @@ _The **drawn** column is the deterministic P&L implied by the trajectory
 you sketched; the **MC mean** column is $\mathbb{E}[\Pi]$ from the Monte
 Carlo above; the **diff** shows how this specific scenario compares to
 the average across random GBM futures._
+
+::::
 
 ## Notes
 
