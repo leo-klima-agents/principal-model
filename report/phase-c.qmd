@@ -155,6 +155,45 @@ format:
 </script>
 ```
 
+## What this page is about (for new readers)
+
+The [Phase B notebook](phase-b.qmd) showed the same three business
+designs — fee, fully back-to-back principal, partially pre-hedged
+principal — under a **fixed** menu of parameters. It used a
+pre-computed sweep over $(\alpha, \mu, \sigma)$ and a handful of
+baked-in runs; the reader could pick a point on the grid, but could not
+step outside it.
+
+Phase C turns that notebook into a **live sandbox**. Every slider on
+this page kicks off a fresh Monte Carlo in your browser (no server
+round-trip, no JSON regeneration), so you can:
+
+- Ask "what if the token starts twice as expensive?" and watch the
+  whole distribution move, not just the pre-computed sample points.
+- Seed the simulation with **real** inventory — say, 300,000 kVCM
+  bought last quarter for \$21,000 — rather than the idealised
+  "bought today at $S_0$" hedge the Phase B $\alpha$ parameter
+  assumed.
+- Draw a specific price trajectory with the mouse (a crash, a spike, a
+  choppy sideways market) and see the three books' P&L **on that exact
+  path**, alongside the MC average across random futures.
+
+The underlying price model is still the same Geometric Brownian Motion
+([Phase A](phase-a.qmd) §1) and the same deterministic retirement flow.
+Those simplifying assumptions are the ones under which closed-form
+anchors exist; the later Phase C iterations will swap in jump
+diffusion, regime switching, and Poisson demand behind the same UI.
+
+::: {.callout-note-lite}
+**Minimum background to read this page.** Familiarity with Monte Carlo
+simulation and with basic distribution statistics (mean, standard
+deviation, quantiles) is helpful. Every plot below has a "how to read
+it" paragraph that states what a good-looking output looks like and
+what a suspicious one would look like. If you want the underlying
+formulas, the [Phase A note](phase-a.qmd) is the primary reference and
+the [Phase B page](phase-b.qmd) carries the worked examples.
+:::
+
 ## Starting Phase C
 
 [Phase B](phase-b.qmd) cross-checked the closed-form §1–§5 quantities (see
@@ -171,6 +210,29 @@ baseline price process is the same GBM used in [Phase B](phase-b.qmd);
 subsequent Phase C iterations will swap in the richer dynamics behind the
 same UI.
 
+### What the page actually does
+
+This page has three blocks, in reading order:
+
+1. **A parameter panel** (the sticky sidebar on the left, or stacked
+   above the plots on a narrow screen). Every input the simulator takes
+   is a slider or a drop-down. Defaults are chosen to match a
+   mid-of-the-road Phase B scenario so the initial view is
+   directly comparable to the pre-baked figures there.
+2. **A live Monte Carlo block.** Given the sliders, the browser runs
+   $n_{\mathrm{paths}}$ full GBM trajectories, computes the three
+   books' terminal P&L on each, and summarises the resulting
+   distributions (summary table + histograms + a handful of sample
+   price paths). Changing any slider re-runs the whole block in real
+   time.
+3. **A "draw your own path" block.** Instead of averaging over random
+   GBM futures, you fix **one** specific trajectory by sketching it on
+   a canvas (or loading a built-in preset: crash, spike, flat,
+   historical). The three book P&Ls are recomputed deterministically
+   from that single curve, using the same contract/inventory
+   parameters as block (2). This is the deterministic-scenario
+   complement to the stochastic MC.
+
 ::: {.callout-note appearance="simple"}
 ## What changes vs. [Phase B](phase-b.qmd)
 
@@ -181,12 +243,108 @@ bought today at $S_0$: you can seed the simulation with an inventory
 that was acquired earlier at a different price. The Phase B $(\alpha =
 k / (N \cdot P),\; \text{basis} = \alpha \cdot N \cdot P \cdot S_0)$
 parametrisation is a special case of the new one.
+
+The practical payoff of this change: the operator can ask questions
+Phase B couldn't, such as *"how much does it matter that my existing
+inventory was acquired at \$0.07 per token rather than today's
+\$0.10?"* (Answer: it shifts the principal book's P&L by a constant —
+the basis — but does not change the **shape** of its distribution,
+because the basis is a sunk cost at $t = 0$.) The shape/location split
+becomes visible in the summary table below: running the same $(\mu,
+\sigma, T, \lambda, Q, f)$ with different inventory basis leaves the
+SD, VaR, and CVaR of the custom-principal book unchanged and shifts
+only the mean.
 :::
+
+### Mini-glossary
+
+Three concepts recur throughout this page. If you've read the
+[Phase B mini-glossary](phase-b.qmd), the first two are unchanged; the
+third is the new Phase C concept.
+
+- **Geometric Brownian Motion (GBM).** A standard model for prices
+  that move by random **percentage** jumps, not random dollar jumps.
+  Parameterised by a drift $\mu$ (expected growth rate per year) and a
+  volatility $\sigma$ (size of the random jitter per year). Token
+  prices, and the dollar-per-tonne figure $\pi_t = P \cdot S_t$, both
+  follow this process in the baseline model.
+- **Monte Carlo simulation.** Rolling the dice thousands of times.
+  Each "roll" here is a full random trajectory of the token price
+  from $t = 0$ to $t = T$, and on each roll we compute the terminal
+  P&L of every book. The distribution of those outcomes is what every
+  histogram and summary statistic on this page is built from.
+- **Raw inventory state $(k, C_{\mathrm{basis}})$.** Two numbers that
+  fully describe whatever tokens the operator already holds on day
+  zero: $k$ is how many kVCM tokens they have, $C_{\mathrm{basis}}$
+  is how many dollars they paid for them (a sunk cost). In Phase B
+  the hedge was specified by a single ratio $\alpha$, which
+  implicitly fixed both: $k = \alpha \cdot N \cdot P$ and
+  $C_{\mathrm{basis}} = k \cdot S_0$. The Phase C form lifts the
+  "bought today at $S_0$" assumption so inventory acquired earlier
+  (at a different price, or with a different amount) can be studied
+  directly.
+
+### Notation cheat-sheet
+
+A brief reminder of the symbols used on this page (full derivations in
+the [Phase A note](phase-a.qmd) §1–§5; Phase B uses the same symbols
+with $\alpha$ taking the role of the inventory state). Read the table
+once top-to-bottom the first time you open this page; after that, the
+formulas should parse on sight.
+
+| Symbol | Meaning | Units |
+| --- | --- | --- |
+| $S_t$ | kVCM / USD spot price at time $t$ | USD / kVCM |
+| $S_0$ | starting spot price | USD / kVCM |
+| $\pi_0$ | starting USD protocol price per tonne of CO₂ | USD / tonne |
+| $P := \pi_0 / S_0$ | protocol constant: kVCM needed per tonne | kVCM / tonne |
+| $\mu$ | GBM drift (annualised) | 1 / year |
+| $\sigma^2$ | GBM variance (annualised); $\sigma = \sqrt{\sigma^2}$ | 1 / year |
+| $\lambda_{\mathrm{day}}$ | retirement flow specified to the UI | tonnes / day |
+| $\lambda = 365 \cdot \lambda_{\mathrm{day}}$ | same flow, internal year unit | tonnes / year |
+| $T$ | horizon (days in UI, years internally) | days / years |
+| $N := \lambda \cdot T$ | total tonnes retired over $[0, T]$ | tonnes |
+| $k$ | pre-purchased inventory | kVCM |
+| $C_{\mathrm{basis}}$ | sunk cost of that inventory | USD |
+| $N \cdot P$ | tokens needed to meet total demand | kVCM |
+| $\tau := \min(1,\; k / (N \cdot P))$ | fraction of horizon the inventory covers | dimensionless |
+| $k_{\mathrm{left}} := \max(0,\; k - N \cdot P)$ | leftover tokens at horizon (over-hedge) | kVCM |
+| $I_T := \int_0^T S_t\,dt$ | full-horizon time-integral of the price | (USD/kVCM)·year |
+| $J_\tau := \int_{\tau T}^{T} S_t\,dt$ | tail integral over the uncovered-by-inventory window | (USD/kVCM)·year |
+| $R_{\mathrm{fee}} = f \cdot P \cdot \lambda \cdot I_T$ | fee-based revenue | USD |
+| $\Pi_{\mathrm{b2b}} = Q \cdot N - P \cdot \lambda \cdot I_T$ | back-to-back principal P&L | USD |
+| $\Pi_{\mathrm{cust}} = Q \cdot N - C_{\mathrm{basis}} - P \cdot \lambda \cdot J_\tau + k_{\mathrm{left}} \cdot S_T$ | custom-inventory principal P&L | USD |
+| $Q^* = (1+f) \cdot P \cdot S_0 \cdot (e^{\mu T}-1)/(\mu T)$ | break-even quote equating $\mathbb{E}[\Pi_{\mathrm{b2b}}] = \mathbb{E}[R_{\mathrm{fee}}]$ | USD / tonne |
+
+Quick reading guide for the Phase-C-specific symbols:
+
+- **$\tau$ ("coverage fraction")** is how far into the horizon the
+  pre-purchased inventory lasts if it is burned at the deterministic
+  rate $\lambda$. $\tau = 1$ means fully covered (§3a matched book);
+  $\tau = 0$ means no pre-buy (§3b back-to-back); $\tau \in (0, 1)$
+  means partial cover, and the operator buys the remainder at spot
+  between $\tau T$ and $T$.
+- **$J_\tau$** is the time-integral of the price **only over the
+  uncovered tail** $[\tau T,\, T]$. It is the custom book's analogue
+  of Phase B's $I_T$: when $\tau = 0$, $J_\tau = I_T$ (back-to-back);
+  when $\tau = 1$, $J_\tau = 0$ (fully matched).
+- **$k_{\mathrm{left}}$** is non-zero only when the operator
+  **over-hedged** — bought more tokens than the year's demand. Those
+  leftover tokens are carried to the horizon and marked-to-market at
+  $S_T$. This is why the custom book's P&L acquires a random
+  $k_{\mathrm{left}} \cdot S_T$ term in the over-hedge regime: a
+  different flavour of exposure from the undersupply one, but still
+  random.
 
 :::: {.pc-section}
 
 ::: {.pc-controls}
 ### Price process
+
+Sets the four numbers that define the GBM model of the token price.
+$\pi_0$ and $S_0$ together pin down today's price *and* the protocol
+constant $P = \pi_0 / S_0$; $\mu$ and $\sigma^2$ are the annualised
+expected return and variance of the log-price.
 
 ```{ojs}
 //| echo: false
@@ -210,6 +368,11 @@ viewof sigma2 = Inputs.range([0, 2.5], { step: 0.005, value: 0.25, label: "varia
 
 ### Demand & inventory
 
+Retirement flow $\lambda$ (tonnes per calendar day) plus the raw
+starting inventory state $(k,\, C_{\mathrm{basis}})$. Coverage of the
+horizon by the inventory is computed automatically and shown in the
+live readout below.
+
 ```{ojs}
 //| echo: false
 viewof lambdaDay = Inputs.range([0, 50], { step: 0.1, value: 1, label: "retirements (tonnes / day)" })
@@ -227,6 +390,10 @@ viewof cBasis = Inputs.range([0, 1000000], { step: 100, value: 21000, label: "in
 
 ### Contract
 
+Horizon (in calendar days for UI convenience; converted internally to
+years) and the two business levers: the fixed USD quote per tonne $Q$
+of the principal book, and the proportional fee $f$ of the fee book.
+
 ```{ojs}
 //| echo: false
 viewof Tdays = Inputs.range([30, 1095], { step: 5, value: 365, label: "horizon T (days)" })
@@ -243,6 +410,11 @@ viewof fee = Inputs.range([0, 1], { step: 0.01, value: 0.4, label: "fee rate f" 
 ```
 
 ### Monte Carlo
+
+Knobs for the simulator itself — how many random trajectories, how
+many time-steps per trajectory, and the PRNG seed. These are
+**statistical** controls (more paths = tighter estimates), not
+business controls.
 
 ```{ojs}
 //| echo: false
@@ -315,7 +487,122 @@ time unit, so $\lambda_{\mathrm{yr}} = 365 \cdot \lambda_{\mathrm{day}}$.
 Defaults are set so that $Q$ tracks the Phase B fee-equivalent quote at
 $t = 0$; override to study off-market pricing.
 
+### What each slider controls, in plain English
+
+The sidebar groups inputs by their role in the model. A short
+walk-through of each group, keyed to what you will see change in the
+plots below when you move the slider.
+
+**Price process** (four knobs).
+
+- **$\pi_0$ (USD per tonne).** Today's dollar price of retiring one
+  tonne. Moving this rescales the whole simulation but does not
+  change any P&L shape — it re-prices both the fee book's revenue
+  and the principal book's quote equally.
+- **$S_0$ (USD per kVCM).** Today's token price. Entering $\pi_0$
+  and $S_0$ separately lets the model back out the **protocol
+  constant** $P = \pi_0 / S_0$: the number of tokens the protocol
+  needs per tonne of CO₂ retired. $P$ is a constant of the protocol
+  and does not move during the simulation.
+- **$\mu$ (annualised drift).** The expected growth rate of the
+  token price under GBM. Positive $\mu$ pushes the principal book
+  into the red on average (it is structurally short the token);
+  negative $\mu$ benefits it.
+- **$\sigma^2$ (annualised variance).** The size of the random
+  jitter in log-returns. Moving this leaves the mean of every book
+  unchanged but inflates the standard deviation and fattens the
+  tails. Use the "VaR / CVaR" columns in the summary table below to
+  watch the effect.
+
+**Demand & inventory** (three knobs — this is the Phase-C-specific
+block).
+
+- **$\lambda_{\mathrm{day}}$ (tonnes per day).** The constant
+  retirement flow. Doubling $\lambda$ doubles $N = \lambda T$ and
+  therefore roughly doubles every book's mean and standard
+  deviation — but does not change their shape, nor the Sharpe-like
+  ratio.
+- **$k$ (kVCM tokens held).** How many tokens are already on the
+  balance sheet at $t = 0$. This is the **inventory state** Phase
+  B reduced to a single ratio $\alpha$. Moving $k$ changes the
+  coverage fraction $\tau$, which in turn changes the length of the
+  uncovered tail integral $J_\tau$ and hence the width of the
+  custom book's distribution.
+- **$C_{\mathrm{basis}}$ (USD, total).** What that inventory cost to
+  acquire. Because the basis is a sunk cost at $t = 0$, moving this
+  slider shifts the custom book's distribution **along the x-axis
+  by a constant** (by $-\Delta C_{\mathrm{basis}}$) and leaves its
+  shape unchanged.
+
+**Contract** (three knobs).
+
+- **$T$ (days).** Horizon length. The internal time unit is years,
+  so $T_{\mathrm{yr}} = T_{\mathrm{days}} / 365$. Longer horizons
+  let drift compound (the $Q^*$ ratio below diverges from 1) and
+  increase the total tonnes $N = \lambda T$.
+- **$Q$ (USD per tonne).** The fixed price the principal book
+  quotes. Moving $Q$ translates the principal book's P&L by
+  $\Delta Q \cdot N$ — a pure parallel shift. The break-even value
+  at which $\mathbb{E}[\Pi_{\mathrm{b2b}}] = \mathbb{E}[R_{\mathrm{fee}}]$
+  is $Q^*$ (printed in the derived-quantities card below).
+- **$f$ (fee rate).** The fee book's markup. Moving $f$ rescales
+  the fee book's distribution linearly (doubling $f$ doubles both
+  mean and SD, leaving Sharpe invariant). It has **no effect** on
+  the principal books — they don't use $f$ at all.
+
+**Monte Carlo** (three knobs).
+
+- **paths.** Number of random GBM trajectories. Statistical error
+  on every estimate scales like $1/\sqrt{n_{\mathrm{paths}}}$, so
+  quadrupling paths halves the confidence-interval half-width. The
+  browser's typical speed budget here is ~10k–40k paths in well
+  under a second; we default to 5,000 for slider responsiveness.
+- **steps / path.** Number of time-steps used to discretise each
+  path. The simulator accumulates $I_T$ and $J_\tau$ by the
+  trapezoid rule, so discretisation error is $O(1/n_{\mathrm{steps}}^2)$
+  — 100 steps already under-counts bias by orders of magnitude
+  relative to Monte Carlo noise.
+- **seed.** Deterministic seed for the Mulberry32 PRNG. Same
+  `(seed, inputs)` pair = same numerical result on every reload,
+  which is the only thing that makes "this VaR number" reproducible
+  across reruns.
+
+### Coverage: the one derived quantity that drives the custom book
+
+Of all the derived quantities below, **coverage** $\tau$ is the one
+worth pausing on. The operator has $k$ tokens on hand; the year will
+consume $N \cdot P$ tokens at the steady rate $\lambda$. Coverage is
+$\tau = \min(1,\, k / (N \cdot P))$ — the fraction of the horizon for
+which the inventory lasts. Three regimes, all exposed by the same
+sliders:
+
+1. **Under-hedged ($\tau < 1$).** Inventory runs out at $t = \tau
+   T$; from then on, retirements are sourced back-to-back at spot.
+   The custom book's randomness lives in the tail integral
+   $J_\tau = \int_{\tau T}^{T} S_t\,dt$. As $\tau \to 1$, this tail
+   shrinks and the custom book tends toward the matched book.
+2. **Exactly matched ($\tau = 1$, $k = N \cdot P$).** The tail
+   integral collapses to zero, so the P&L is $Q \cdot N -
+   C_{\mathrm{basis}}$, **deterministic**. This reproduces
+   Phase B's §3a point.
+3. **Over-hedged ($\tau = 1$, $k > N \cdot P$).** Enough tokens to
+   cover the year, with leftover $k_{\mathrm{left}} = k - N \cdot P$
+   tokens carried to the horizon. Those leftovers are marked-to-
+   market at $S_T$, so the P&L reacquires randomness — but through
+   a **point estimate** of the price ($S_T$), not an integral. This
+   is structurally different from under-hedged risk and the
+   distribution shape reflects that: terminal-price risk looks
+   log-normal rather than integrated-log-normal.
+
+The next section prints $\tau$ live and flags when it hits 100%.
+
 ## Derived quantities
+
+Everything in the scorecard below is computed from the sliders by a
+single closed-form expression (no Monte Carlo needed). The point of
+displaying them is to turn the sliders' raw numbers into quantities
+that appear in the equations — so you can sanity-check the setup
+before looking at the MC output.
 
 ```{ojs}
 //| echo: false
@@ -350,6 +637,42 @@ html`<div class="phase-c-derived">
 </div>`
 ```
 
+### How to read the cards above
+
+- **$\sigma$.** Simply $\sqrt{\sigma^2}$. Displayed because the sim
+  internally uses $\sigma$ (the SD), not $\sigma^2$ (the variance), and
+  it is the number that appears in every moment formula.
+- **$P = \pi_0 / S_0$.** The protocol constant. This is set implicitly
+  by the pair $(\pi_0, S_0)$ rather than as a first-class slider, so
+  the user can keep the dollar price per tonne fixed and independently
+  vary where it lives in token space.
+- **$T$ (years).** The horizon in the internal time unit. Multiply any
+  per-year quantity by this to translate to the horizon total.
+- **$N = \lambda T$.** Total tonnes the business will retire over the
+  horizon. This is the multiplier that connects per-tonne quantities
+  ($Q$, $\pi_0$) to total P&L.
+- **Tokens needed $N \cdot P$.** The *physical* token demand over the
+  horizon. Compare this number against the inventory $k$ to read off
+  coverage mentally.
+- **Coverage.** $\tau = \min(1,\, k / (N \cdot P))$, expressed as a
+  percentage. At 100% the custom book is §3a-deterministic; below 100%
+  the tail of the horizon is back-to-back at spot.
+- **Inventory runs out at.** When coverage is below 100%, this is
+  $\tau \cdot T$ expressed in days — the calendar day on which the
+  last pre-purchased token is burned. After that day the operator is
+  paying spot for the remainder.
+- **Implied basis per token.** $C_{\mathrm{basis}} / k$ — the average
+  USD price per token that was paid for the existing inventory. If
+  this number sits above the current $S_0$, the operator is carrying
+  an **unrealised loss** on the inventory; below $S_0$, an unrealised
+  gain.
+- **Break-even $Q^*$.** The quote at which the fee book and the
+  back-to-back principal book have equal **expected** P&L (Phase A
+  §4; the formula is $(1+f) \cdot P \cdot S_0 \cdot (e^{\mu T} -
+  1)/(\mu T)$). Handy as a reference point when choosing $Q$: setting
+  $Q = Q^*$ equalises means; the sections below make clear how
+  *distributions* differ despite the matched means.
+
 ::: {.callout-note appearance="simple"}
 ## Interpreting "coverage"
 
@@ -359,6 +682,17 @@ runs out of inventory part-way through the horizon and has to buy the
 remainder back-to-back at spot — that is where the left-tail risk
 appears. Above 100% (over-hedged) the excess tokens are marked-to-market
 at $S_T$ at the horizon.
+
+**Why the two regimes (under- and over-hedge) produce different-shaped
+loss distributions.** Under-hedged, the uncovered tail is a *path
+integral* $J_\tau = \int_{\tau T}^{T} S_t\,dt$ — a smoothed average of
+many price points. Over-hedged, the residual exposure is
+$k_{\mathrm{left}} \cdot S_T$ — the price at a **single point** in
+time. Integrals of log-normals are less heavy-tailed than a raw
+log-normal (an averaging effect), so the shape of the under-hedge
+loss tail is milder than the over-hedge gain/loss tail at the same
+dollar exposure. That asymmetry shows up in the VaR / CVaR columns of
+the summary table below when you push $k$ past $N \cdot P$.
 :::
 
 ## Core simulator
@@ -367,6 +701,37 @@ All cells below are pure JavaScript running in the browser — no server, no
 pre-computed JSON. The simulator is a direct port of `src/rng.ts`,
 `src/gbm.ts`, `src/moments.ts`, and `src/risk.ts`. Keeping it inline lets
 readers audit every calculation in one place.
+
+### What the simulator computes, step-by-step
+
+Every slider change triggers the following sequence:
+
+1. **Seed the PRNG.** A Mulberry32 generator is initialised from the
+   current `seed` slider. The generator emits uniform $U(0,1)$ draws;
+   Box–Muller converts pairs of uniforms into standard normals.
+2. **Simulate $n_{\mathrm{paths}}$ GBM trajectories.** Each trajectory
+   steps the price forward $n_{\mathrm{steps}}$ times using the
+   exact log-GBM increment $S_{t + dt} = S_t \cdot \exp\!\big((\mu -
+   \tfrac12 \sigma^2)\,dt + \sigma\sqrt{dt}\,Z\big)$. This is the
+   same recipe as `src/gbm.ts` in Phase B.
+3. **Accumulate the integrals.** On each trajectory we compute
+   (a) the full-horizon integral $I_T = \int_0^T S_t\,dt$ by the
+   trapezoid rule, and (b) the tail integral $J_\tau = \int_{\tau
+   T}^T S_t\,dt$ over the window where inventory has already run
+   out. (b) is only nonzero when coverage is below 100%.
+4. **Plug the integrals into each book's formula.** Fee: $f P
+   \lambda I_T$. Back-to-back: $Q N - P \lambda I_T$. Custom: $Q N
+   - C_{\mathrm{basis}} - P \lambda J_\tau + k_{\mathrm{left}} S_T$.
+5. **Summarise.** Mean, standard deviation, 95/99 VaR and CVaR, loss
+   probability, and a Sharpe-like ratio are computed from the
+   sample array. These are the numbers populating the table below.
+6. **Keep a handful of paths for plotting.** Only the first ~20
+   trajectories are stored in full; the rest contribute their
+   scalar P&L and are discarded to keep memory flat.
+
+The implementation below is deliberately inline and un-minified. It is
+safe to click through every cell: nothing writes to disk, nothing calls
+out to the network, and refreshing the page is a clean reset.
 
 ```{ojs}
 //| echo: false
@@ -612,6 +977,18 @@ function summarise(samples) {
 
 ## Monte Carlo run
 
+This section is the live output of the simulator. The run card just
+below shows how many paths were generated and how long the run took;
+the three subsections that follow present the results three ways — a
+summary table (numbers), histograms (distributions), and a handful of
+sample price paths (individual trajectories).
+
+Keep an eye on **wall time** as you change sliders: the simulator is
+fast enough that you can generally keep paths at 5,000 or 10,000 and
+still get sub-second updates. If you crank `paths` all the way up to
+40,000 and the page becomes sluggish, you are waiting on the browser
+to re-histogram and re-plot, not on the simulator itself.
+
 ```{ojs}
 //| echo: false
 run = {
@@ -653,6 +1030,45 @@ Three books are simulated on each draw:
 - **Principal (back-to-back)** — $\Pi_{\mathrm{b2b}} = Q \cdot N - P \cdot \lambda \cdot I_T$. No pre-purchase, for reference.
 - **Principal (custom inventory)** — $\Pi_{\mathrm{cust}} = Q \cdot N - C_{\mathrm{basis}} - P \cdot \lambda \int_{\tau T}^{T} S_t\,dt + k_{\mathrm{left}} \cdot S_T$, the active slider model.
 
+The **back-to-back** row is kept as a reference: it is the pure "no
+pre-purchase" baseline against which the custom-inventory book's risk
+reduction is measured. Equivalent to Phase B's `principal_3b`.
+
+**Column guide.**
+
+| column | meaning |
+| --- | --- |
+| $\mathbb{E}[\Pi]$ (mc) | expected P&L, estimated from the MC sample mean |
+| SD | sample standard deviation of the P&L |
+| $\pm \mathrm{CI}_{95}$ | 95% half-width of the **mean**'s confidence interval (= $1.96 \cdot \mathrm{SD} / \sqrt{n}$); shrinks with more paths |
+| $\mathrm{VaR}_{95} / \mathrm{VaR}_{99}$ | loss threshold exceeded with 5% / 1% probability |
+| $\mathrm{CVaR}_{95} / \mathrm{CVaR}_{99}$ | expected loss inside the worst 5% / 1% tail |
+| $\mathbb{P}[\Pi < 0]$ | probability the book ends the horizon in the red |
+| Sharpe | $\mathbb{E}[\Pi] / \mathrm{SD}[\Pi]$ — expected reward per unit of risk |
+
+All P&L numbers are USD totals over the horizon $T$ (not annualised,
+not per tonne). If you want a per-tonne figure, divide by $N = \lambda
+T$ (printed in the derived-quantities card above).
+
+**Reading tips.**
+
+- Row **fee** is a revenue, always $\geq 0$. Its VaR/CVaR are therefore
+  negative numbers — "the worst case is a smaller gain, not a loss
+  against zero."
+- Row **principal (custom)** is the row that responds to every slider
+  change: shifting $Q$ moves its mean; shifting $\sigma$ widens its
+  tails; shifting $k$ or $C_{\mathrm{basis}}$ changes either shape
+  (via $\tau$ / $J_\tau$) or location (via the basis).
+- Row **principal (back-to-back)** is fixed relative to $Q$ and the
+  price process; it does **not** depend on $k$ or $C_{\mathrm{basis}}$.
+  If the custom row's numbers converge to this row as you drag $k$
+  toward zero, the simulator is implementing the Phase B identity
+  $\Pi_{\mathrm{cust}}\big|_{k=0,\,C_{\mathrm{basis}}=0} = \Pi_{\mathrm{b2b}}$
+  correctly.
+- When coverage hits 100% exactly, the custom book's SD and CVaR
+  collapse to the sign of the one deterministic P&L — you should see
+  SD approaching zero in the table.
+
 ```{ojs}
 //| echo: false
 summaryRows = [
@@ -693,6 +1109,40 @@ Inputs.table(summaryRows, {
 ```
 
 ### P&L distributions
+
+The table above summarises each book with a handful of statistics; the
+plot below shows the **full distribution** behind those statistics —
+one panel per book.
+
+How to read a panel:
+
+- The **horizontal axis** is the book's terminal P&L in USD. Negative
+  values are losses.
+- The **bars** are a histogram of simulated P&Ls, binned into a
+  proportion (so the three panels are directly comparable in shape
+  even if their dollar scales differ).
+- The **solid black vertical rule** is the MC-estimated mean
+  $\mathbb{E}[\Pi]$ — the same number that appears in the table's
+  "$\mathbb{E}[\Pi]$ (mc)" column. It should sit at the visual centre
+  of the histogram if MC is converged.
+- The **dashed grey rule** at $\Pi = 0$ is the break-even line. The
+  mass of the histogram to the left of it is the loss probability
+  $\mathbb{P}[\Pi < 0]$ reported in the table.
+
+What to notice on each panel:
+
+- **Fee.** Non-negative by construction; the histogram sits entirely
+  to the right of $\Pi = 0$. Its shape inherits the right-skew of
+  $I_T$ (the Phase B plot shows $I_T$'s histogram directly).
+- **Principal (custom).** This is the one that changes as you drag
+  sliders. At low coverage it is wide and left-skewed (the
+  back-to-back regime); at 100% coverage it collapses to a spike (the
+  matched regime); in between it interpolates. Over-hedging rebuilds
+  the width but with a different shape.
+- **Principal (back-to-back).** The mirror-image of the fee panel: same
+  random kernel $I_T$, entered with a minus sign, so right-skew becomes
+  left-skew. Useful as a visual anchor — the custom panel collapses to
+  this one when $k = C_{\mathrm{basis}} = 0$.
 
 ```{ojs}
 //| echo: false
@@ -743,6 +1193,32 @@ custom-principal panel collapses toward a spike as coverage approaches
 100% — that's the §3a matched book limit._
 
 ### Sample price paths and inventory decay
+
+Histograms show the **distribution** of outcomes; this plot shows a
+handful of **individual** price trajectories so the reader gets an
+intuition for the underlying stochastic process that produced them.
+
+What to look for:
+
+- **Grey lines** are ~20 randomly sampled GBM trajectories of the
+  token spot. The density of grey at a given $(t, S_t)$ is a rough
+  visual proxy for where the probability mass lives at that time.
+- The **orange line** is the first trajectory, highlighted so a single
+  path can be followed end-to-end.
+- The **dashed green rule** marks the time at which the pre-purchased
+  inventory runs out ($t = \tau T$). To the **left** of this line the
+  operator is drawing tokens from inventory; to the **right**, buying
+  at spot. The custom book's randomness is driven entirely by what
+  happens to the grey lines to the **right** of this rule (and, if
+  over-hedged, by where those lines land at $t = T$).
+- If coverage is 100% the green rule sits at (or past) $t = T$ — the
+  inventory never runs out and the back-to-back purchasing window is
+  empty. If coverage is 0% the rule is at $t = 0$ and the whole
+  horizon is back-to-back.
+- All the trajectories start at the same $S_0$ (left edge) and fan out
+  as the horizon advances, with the fan width growing like
+  $\sigma\sqrt{t}$ — this is the visual signature of GBM and a useful
+  sanity check on the simulator.
 
 ```{ojs}
 //| echo: false
@@ -801,6 +1277,36 @@ spike, a choppy flat — and the three book P&Ls are recomputed
 deterministically from that trajectory in real time, using the same
 parameters as the sliders in the left pane.
 
+### Why a deterministic scenario matters alongside the MC
+
+Monte Carlo output is a statement about averages and tails. It answers
+"in the long run, what does the book earn?" and "how bad is the worst
+5%?" — but it **smooths over every individual story**. A $1 million
+loss on a path where the token spiked in month 3 and crashed in month
+7 gets averaged into the same CVaR number as a $1 million loss from a
+path that simply trended up slowly.
+
+A single drawn-curve scenario is the complement: "given *this*
+specific story, what would the book actually have done?" Concretely,
+use it to:
+
+- **Stress-test against named scenarios.** The toolbar has
+  presets for a mid-horizon crash, a spike, a linear +50% / −50%
+  drift, a random walk, and (when data is available) the actual
+  historical kVCM price series. Each answers a business question
+  that is sharp enough to bring to a meeting: *"if this happens, do
+  we still have the capital to finish the year?"*
+- **Validate intuition about the MC mean.** If the drawn P&L on a
+  "flat at $S_0$" curve agrees with the closed-form expectation
+  under $\mu = 0$, you know the integral path is wired correctly.
+  If it doesn't, the MC number is suspect too.
+- **Separate path-specific loss from path-averaged loss.** The MC
+  mean is an expectation over all futures; the drawn-curve P&L is
+  the value on one. Comparing the two (the "drawn − MC mean"
+  column) tells you how much *this specific story* differs from the
+  long-run average — which is what a stress test is trying to
+  quantify.
+
 ::: {.callout-note appearance="simple"}
 ## How the curve is used
 
@@ -813,7 +1319,45 @@ are reproducible). Integrals on that realised path are computed by the
 trapezoid rule ($I_T = \int_0^T S_t\,dt$, tail integral over $[\tau T,
 T]$), and $S_T$ is read off the last point. All book formulas are
 identical to the MC ones; only the price path differs.
+
+**Practical tip.** Leaving $\sigma^2_{\mathrm{noise}} = 0$ gives a
+clean, reproducible "what-if" result — the P&L you read off the table
+below is exactly the P&L on the curve you see. Turning noise on
+simulates "what if the trajectory I envisioned had typical day-to-day
+jitter around it?" — useful when the question is robustness of a
+narrative rather than the narrative itself. Pairs of noise slider + seed
+slider let you cycle through alternative realisations of that jitter.
 :::
+
+### The toolbar presets
+
+Each of the buttons above the canvas installs a pre-baked shape. Use
+them as starting points and then refine by hand.
+
+- **Flat @ $S_0$.** The price never moves. Under $\mu = 0$ this is the
+  mean path of GBM, so the three book P&Ls on this curve should be
+  close to the MC means (modulo the Jensen inequality between
+  $\mathbb{E}[I_T]$ and $T \cdot S_0$).
+- **Linear +50% / −50%.** Constant-rate drift up or down. Good for
+  sanity-checking how $\mu$ acts: a +50% linear rise produces a
+  larger fee revenue, a larger principal loss, and a larger
+  custom-book loss (via $J_\tau$) in predictable proportion.
+- **Crash @ ½T.** Price stays flat, then collapses at the horizon's
+  midpoint. Tests what happens when the operator is caught with
+  exposure during a sudden re-rating. Particularly informative when
+  coverage is close to but below 100% — the crash may land inside
+  the uncovered tail window.
+- **Spike @ ⅓T.** A transient rally early in the horizon that fades
+  back. Tests the opposite scenario: a brief period of expensive
+  tokens that the back-to-back book has to buy through.
+- **Random walk.** A rough approximation of GBM drawn by hand — not
+  the same as the simulator's MC, but visually similar. Useful as a
+  "what might one realisation actually look like?" reference.
+- **Historical.** If `npm run fetch:prices` has populated
+  `data/kvcm-historical.json`, this button loads the real kVCM series
+  (Alchemy Prices API) and auto-resizes the horizon to match the
+  available history. The button is disabled when the file is missing
+  or empty, and the rest of the canvas continues to work.
 
 ```{=html}
 <style>
@@ -1365,6 +1909,20 @@ the realised noisy path actually fed into the integrals, overlaid on the
 same canvas. Change the PRNG seed (either slider — they're synchronised)
 to cycle through different noise realisations._
 
+### Curve summary and deterministic P&L
+
+The next two blocks present the **result** of whatever you drew:
+
+1. A summary card strip with the min / max of the realised path, its
+   mean (which equals $I_T / T$ and is therefore the one-point summary
+   of the path most relevant to the fee book), the terminal price
+   $S_T$, and the tail integral $J_\tau$.
+2. A deterministic P&L table for all three books on the drawn
+   trajectory, alongside the MC mean for each book and the difference.
+   Reading the difference column left-to-right tells you "how much is
+   this specific story a good / bad outcome relative to the long-run
+   average?"
+
 ```{ojs}
 //| echo: false
 html`<div class="phase-c-derived">
@@ -1407,11 +1965,98 @@ you sketched; the **MC mean** column is $\mathbb{E}[\Pi]$ from the Monte
 Carlo above; the **diff** shows how this specific scenario compares to
 the average across random GBM futures._
 
+**How to use this table.**
+
+- A **positive diff on the fee row** means you drew a high-price path:
+  the fee book earned more revenue on this curve than it does on
+  average. Because the fee book's P&L is proportional to $I_T$, you
+  can read the diff column as a linear function of $\bar S - \bar
+  S_{\mathrm{MC}}$, where $\bar S = I_T / T$.
+- A **negative diff on the principal (custom) row** when
+  coverage is partial means the drawn curve is *worse* for the
+  operator than average: the token was more expensive over the
+  uncovered tail window $[\tau T, T]$ than the GBM expects on average.
+  This is the natural stress-test read-out.
+- A **diff of roughly zero on all three rows at once** is the
+  signature of a drawn curve that is "typical" — close to the mean
+  path of GBM. That tells you the curve is a plausible but
+  unexceptional future, not a stress scenario.
+- **Coverage matters.** If the custom book shows no sensitivity to
+  the drawn curve (diff ≈ 0 even for wild shapes), check that
+  coverage is below 100%. At 100% coverage the custom book is
+  deterministic and its P&L does not depend on the path at all.
+
 :::
 
 ::::
 
-## Notes
+## Reading notes
+
+A few things to keep in mind while skimming or coming back to this
+page later.
+
+**On the numbers you see:**
+
+- All closed-form / Monte Carlo agreement checks are intentionally
+  deferred to the [Phase B scorecard](phase-b.qmd): this page prints
+  only MC estimates because its job is interactive exploration, not
+  validation. If you want to confirm the simulator still agrees with
+  closed form, run Phase B with the same seed and compare.
+- All P&L numbers are **totals over the horizon $T$**, not annualised
+  and not per-tonne. Divide by $N = \lambda T$ for a per-tonne figure,
+  or by $T$ for an annualised figure.
+- "Loss" means "the P&L random variable $\Pi$ came out negative." The
+  fee book's revenue $R_{\mathrm{fee}}$ is never negative — its VaR
+  and CVaR as printed are the *low end* of revenue, not a loss against
+  zero.
+- The confidence-interval half-width on the mean shrinks like
+  $1/\sqrt{n_{\mathrm{paths}}}$; the VaR / CVaR estimates converge at
+  the same rate. If a tail metric is flickering as you drag a slider,
+  increase paths.
+
+**On the business take-aways:**
+
+- **Pre-buying inventory** is the natural hedge for the principal book.
+  Dragging $k$ from zero up toward $N \cdot P$ (the full-coverage
+  point) shrinks every risk metric on the custom row — you can watch
+  the VaR and CVaR columns fall in real time, with the quadratic
+  $(1 - \tau)^2$ signature from Phase A §3c.
+- **Cost basis is a location parameter, not a risk parameter.** The
+  distribution's shape is invariant to $C_{\mathrm{basis}}$; only its
+  mean shifts. Buying more cheaply does not reduce risk, it just
+  improves expected P&L. This is why risk managers care about
+  coverage ($\tau$) far more than about the unrealised gain / loss
+  ($C_{\mathrm{basis}}$ vs. $k \cdot S_0$).
+- **Over-hedging carries a different risk than under-hedging.**
+  Under-hedge exposes you to a path integral of future prices (smooth,
+  milder tails); over-hedge exposes you to a single terminal price
+  (log-normal, heavier tail at the same dollar exposure). The shape
+  of the loss distribution in the Principal (custom) panel changes
+  visibly when you cross the $k = N \cdot P$ boundary.
+- **The custom-curve section is the bridge to stress testing.** Once
+  the sliders isolate the combination of inputs that produces an
+  alarming CVaR, the custom-curve section tells you *what a specific
+  story looks like* in that regime. Both are required inputs to a
+  capital-planning conversation — one gives the distributional
+  summary, the other supplies the anecdote.
+
+**On what this page does *not* do (yet):**
+
+- **Price dynamics are still GBM.** The whole Phase C roadmap —
+  jump-diffusion, regime switching, Poisson retirement flow,
+  historical calibration of $(\mu, \sigma)$ against a kVCM proxy, and
+  dynamic hedging strategies — is deferred to subsequent iterations,
+  each of which will swap in richer dynamics **behind the same UI**
+  on this page.
+- **Gas, slippage, and discounting are not modelled.** Same as Phase
+  B. Each introduces a small correction to the book formulas
+  (typically a few percent), not a qualitative change in shape.
+- **Nothing on this page is financial advice.** Use the framework;
+  plug in your own $(\mu, \sigma)$ calibrated from data before making
+  any business decision; treat the custom-curve results as illustrative
+  scenarios, not forecasts.
+
+## Implementation notes
 
 - **Performance.** Each slider change re-runs the simulator. At 5,000
   paths × 100 steps the wall time reported above should be well under a
@@ -1419,6 +2064,8 @@ the average across random GBM futures._
   tails; decrease for responsiveness while exploring.
 - **Reproducibility.** The PRNG is the same seeded Mulberry32 as Phase B,
   so a given `(seed, inputs)` pair is deterministic across reloads.
+  That applies to both the Monte Carlo block and the noise-overlay of
+  the custom-curve block — they share the `seed` slider.
 - **What is still Phase B under the hood.** GBM dynamics and deterministic
   retirement flow. Phase C iterations will replace these with
   jump-diffusion, regime switching, and Poisson demand while keeping the
@@ -1427,3 +2074,7 @@ the average across random GBM futures._
   the raw inventory state (tokens + cost basis), not by a ratio $\alpha$.
   This allows seeding with inventory bought previously at a price different
   from $S_0$ — a prerequisite for the calibration work later in Phase C.
+  The drawn-curve section is also new: it gives the reader a
+  deterministic-scenario complement to the stochastic Monte Carlo
+  above, with a historical-price preset wired in when the data file is
+  available.
