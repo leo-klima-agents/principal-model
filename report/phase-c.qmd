@@ -17,14 +17,14 @@ format:
   .phase-c-derived .card .value { font-family: ui-monospace, monospace; font-size: 1.1rem; }
 
   /* Section layout: controls in a left rail that's sticky across the whole
-     section; body content stays centred on the page. The .pc-section grid
-     escapes to screen width via .column-screen-inset; a phantom column
-     mirrors the sidebar on the right so the content column is symmetric
-     about the page centre, rather than being pushed rightward by the
-     sidebar's footprint. */
+     section; body content aligns with Quarto's body column. The .pc-section
+     uses .column-screen-inset-left, whose right edge coincides with the
+     body column's right edge, so placing the content column at the grid's
+     right edge with the body column's width reproduces the body column
+     exactly. The sticky sidebar sits in the left whitespace. */
   .pc-section {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 320px 1.5rem minmax(0, 850px) 1.5rem 320px minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) 320px 1.5rem minmax(0, 850px);
     align-items: start;
   }
   .pc-section > * { grid-column: 4; min-width: 0; }
@@ -90,7 +90,7 @@ k / (N \cdot P),\; \text{basis} = \alpha \cdot N \cdot P \cdot S_0)$
 parametrisation is a special case of the new one.
 :::
 
-:::: {.pc-section .column-screen-inset}
+:::: {.pc-section .column-screen-inset-left}
 
 ::: {.pc-controls}
 ### Price process
@@ -660,7 +660,7 @@ historicalPrices = {
 }
 ```
 
-:::: {.pc-section .column-screen-inset}
+:::: {.pc-section .column-screen-inset-left}
 
 ::: {.pc-controls}
 All sliders below mirror the ones in the previous section — moving either
