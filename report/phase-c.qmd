@@ -20,6 +20,33 @@ format:
   .phase-c-derived .card .label { font-size: 0.8rem; color: #555; }
   .phase-c-derived .card .value { font-family: ui-monospace, monospace; font-size: 1.1rem; }
   .callout-note-lite { border-left: 3px solid #4c78a8; background: #f3f7fb; padding: 0.6rem 0.9rem; margin: 0.8rem 0; font-size: 0.95rem; }
+
+  /* --- Sticky controls layout ---------------------------------------- */
+  /* Two-column grid: inputs pinned on the left, charts on the right.
+     Falls back to a single column on narrow screens. */
+  @media (min-width: 1100px) {
+    .pc-layout { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 1.5rem; align-items: start; }
+    .pc-controls-pane {
+      position: sticky; top: 0.75rem;
+      max-height: calc(100vh - 1.5rem);
+      overflow-y: auto;
+      padding: 0.75rem 1rem 1rem;
+      border: 1px solid #ddd; border-radius: 8px; background: #fafafa;
+      font-size: 0.9rem;
+    }
+    .pc-controls-pane h2 { font-size: 1.05rem; margin: 0.25rem 0 0.5rem; }
+    .pc-controls-pane h3 { font-size: 0.95rem; margin: 0.9rem 0 0.4rem; color: #333; text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 1px solid #e0e0e0; padding-bottom: 0.2rem; }
+    .pc-controls-pane p { font-size: 0.82rem; color: #555; margin: 0.25rem 0 0.6rem; }
+    .pc-controls-pane form { width: 100%; }
+    .pc-controls-pane label { font-size: 0.82rem; }
+    .pc-controls-pane input[type="range"] { width: 100%; }
+  }
+  /* Compact "live readout" strip inside the sticky pane. */
+  .pc-readout { display: grid; grid-template-columns: 1fr 1fr; gap: 0.3rem 0.6rem; margin: 0.4rem 0 0.2rem; font-size: 0.8rem; }
+  .pc-readout .k { color: #555; }
+  .pc-readout .v { font-family: ui-monospace, monospace; text-align: right; }
+  /* Let Plot/Inputs.table SVGs shrink to fit the constrained content pane. */
+  .pc-content-pane svg, .pc-content-pane figure { max-width: 100%; }
 </style>
 ```
 
@@ -47,20 +74,21 @@ Phase B $(\alpha = k / (N \cdot P),\; \text{basis} = \alpha \cdot N \cdot P \cdo
 is a special case of the new one.
 :::
 
+::: {.pc-layout}
+
+::: {.pc-controls-pane}
 ## Controls
 
-Drift $\mu$ and variance $\sigma^2$ are annualised. The retirement rate
-$\lambda$ is specified per calendar day; internally we use a year as the
-time unit, so $\lambda_{\mathrm{yr}} = 365 \cdot \lambda_{\mathrm{day}}$.
+### Price process
 
 ```{ojs}
 //| echo: false
-viewof pi0 = Inputs.range([1, 200], { step: 0.5, value: 40, label: "starting carbon price π₀ (USD / tonne)" })
+viewof pi0 = Inputs.range([1, 200], { step: 0.5, value: 40, label: "π₀ (USD / tonne)" })
 ```
 
 ```{ojs}
 //| echo: false
-viewof S0 = Inputs.range([0.1, 50], { step: 0.05, value: 10, label: "starting kVCM price S₀ (USD / kVCM)" })
+viewof S0 = Inputs.range([0.1, 50], { step: 0.05, value: 10, label: "S₀ (USD / kVCM)" })
 ```
 
 ```{ojs}
@@ -73,24 +101,24 @@ viewof mu = Inputs.range([-0.5, 0.5], { step: 0.005, value: 0.05, label: "drift 
 viewof sigma2 = Inputs.range([0, 2.5], { step: 0.005, value: 0.25, label: "variance σ² (annualised)" })
 ```
 
+### Demand & inventory
+
 ```{ojs}
 //| echo: false
-viewof lambdaDay = Inputs.range([0, 5000], { step: 10, value: 250, label: "retirements per day (tonnes / day)" })
+viewof lambdaDay = Inputs.range([0, 5000], { step: 10, value: 250, label: "retirements (tonnes / day)" })
 ```
 
 ```{ojs}
 //| echo: false
-viewof kPre = Inputs.range([0, 500000], { step: 100, value: 0, label: "initial kVCM inventory (tokens)" })
+viewof kPre = Inputs.range([0, 500000], { step: 100, value: 0, label: "initial inventory (kVCM)" })
 ```
 
 ```{ojs}
 //| echo: false
-viewof cBasis = Inputs.range([0, 2000000], { step: 100, value: 0, label: "initial inventory cost basis (USD, total)" })
+viewof cBasis = Inputs.range([0, 2000000], { step: 100, value: 0, label: "inventory basis (USD, total)" })
 ```
 
-Secondary controls — horizon, customer quote, fee, and Monte Carlo size.
-Defaults are set so that $Q$ tracks the Phase B fee-equivalent quote at
-$t = 0$; override to study off-market pricing.
+### Contract
 
 ```{ojs}
 //| echo: false
@@ -104,23 +132,49 @@ viewof Q = Inputs.range([0, 500], { step: 0.5, value: 42, label: "fixed quote Q 
 
 ```{ojs}
 //| echo: false
-viewof fee = Inputs.range([0, 0.25], { step: 0.005, value: 0.05, label: "fee rate f (dimensionless)" })
+viewof fee = Inputs.range([0, 0.25], { step: 0.005, value: 0.05, label: "fee rate f" })
+```
+
+### Monte Carlo
+
+```{ojs}
+//| echo: false
+viewof nPaths = Inputs.select([2000, 5000, 10000, 20000, 40000], { value: 5000, label: "paths" })
 ```
 
 ```{ojs}
 //| echo: false
-viewof nPaths = Inputs.select([2000, 5000, 10000, 20000, 40000], { value: 5000, label: "Monte Carlo paths" })
-```
-
-```{ojs}
-//| echo: false
-viewof nSteps = Inputs.select([50, 100, 200, 365], { value: 100, label: "time steps / path" })
+viewof nSteps = Inputs.select([50, 100, 200, 365], { value: 100, label: "steps / path" })
 ```
 
 ```{ojs}
 //| echo: false
 viewof seed = Inputs.range([1, 9999], { step: 1, value: 42, label: "PRNG seed" })
 ```
+
+### Live readout
+
+```{ojs}
+//| echo: false
+html`<div class="pc-readout">
+  <div class="k">P = π₀ / S₀</div><div class="v">${derived.P.toFixed(3)}</div>
+  <div class="k">σ</div><div class="v">${derived.sigma.toFixed(3)}</div>
+  <div class="k">T (yr)</div><div class="v">${derived.T.toFixed(2)}</div>
+  <div class="k">N (tonnes)</div><div class="v">${derived.N.toLocaleString(undefined, {maximumFractionDigits: 0})}</div>
+  <div class="k">coverage</div><div class="v">${(derived.coverageFrac * 100).toFixed(1)}%</div>
+  <div class="k">Q* (USD/t)</div><div class="v">${derived.QStar.toFixed(2)}</div>
+</div>`
+```
+
+:::
+
+::: {.pc-content-pane}
+
+Drift $\mu$ and variance $\sigma^2$ are annualised. The retirement rate
+$\lambda$ is specified per calendar day; internally we use a year as the
+time unit, so $\lambda_{\mathrm{yr}} = 365 \cdot \lambda_{\mathrm{day}}$.
+Defaults are set so that $Q$ tracks the Phase B fee-equivalent quote at
+$t = 0$; override to study off-market pricing.
 
 ## Derived quantities
 
@@ -540,6 +594,10 @@ _Grey: sampled GBM trajectories of the kVCM spot. Orange: first path
 highlighted. Green dashed rule: time at which the pre-purchased inventory
 is exhausted — to the right of this line, retirements are sourced at
 spot._
+
+:::
+
+:::
 
 ## Notes
 
