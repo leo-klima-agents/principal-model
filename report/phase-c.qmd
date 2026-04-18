@@ -99,10 +99,6 @@ format:
     max-width: 160px !important;
   }
 
-  .pc-readout { display: grid; grid-template-columns: 1fr 1fr; gap: 0.3rem 0.6rem; margin: 0.4rem 0 0.2rem; font-size: 0.8rem; }
-  .pc-readout .k { color: #555; }
-  .pc-readout .v { font-family: ui-monospace, monospace; text-align: right; }
-
   .pc-reset { margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid #e0e0e0; }
   .pc-reset button {
     width: 100%;
@@ -431,21 +427,6 @@ viewof nSteps = Inputs.select([50, 100, 200, 365], { value: 100, label: "steps /
 ```{ojs}
 //| echo: false
 viewof seed = Inputs.range([1, 9999], { step: 1, value: 42, label: "PRNG seed" })
-```
-
-### Live readout
-
-```{ojs}
-//| echo: false
-html`<div class="pc-readout">
-  <div class="k">π₀ (USD/t)</div><div class="v">${"$" + pi0.toFixed(2)}</div>
-  <div class="k">S₀ = π₀ / P</div><div class="v">${"$" + derived.S0.toFixed(4)}</div>
-  <div class="k">σ</div><div class="v">${derived.sigma.toFixed(3)}</div>
-  <div class="k">T (yr)</div><div class="v">${derived.T.toFixed(2)}</div>
-  <div class="k">N (tonnes)</div><div class="v">${derived.N.toLocaleString(undefined, {maximumFractionDigits: 0})}</div>
-  <div class="k">coverage</div><div class="v">${(derived.coverageFrac * 100).toFixed(1)}%</div>
-  <div class="k">Q* (USD/t)</div><div class="v">${"$" + derived.QStar.toFixed(2)}</div>
-</div>`
 ```
 
 ```{ojs}
