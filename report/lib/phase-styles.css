@@ -4,8 +4,22 @@
    each viewport side. No runtime JS. */
 
 :root {
-  --side-w: 260px;
+  /* Sidebar width auto-expands with the viewport so gutters on very
+     wide screens don't stay oversized; clamp() keeps them usable on
+     1400px laptops and from growing beyond something sensible on huge
+     monitors. The calc() term equals the available gutter when the
+     centred content column is --content-w, leaving --side-inside-gap
+     between sidebar and content. */
+  --content-w: 900px;
+  --side-min: 220px;
+  --side-max: 340px;
   --side-offset: 0.75rem;
+  --side-inside-gap: 1.25rem;
+  --side-w: clamp(
+    var(--side-min),
+    calc((100vw - var(--content-w)) / 2 - var(--side-offset) - var(--side-inside-gap)),
+    var(--side-max)
+  );
   --side-top: 5rem;
   --side-gap: 0.6rem;
 }
@@ -117,11 +131,13 @@ nav#TOC > ul { font-size: 0.82rem; }
 }
 
 /* Wide viewports: pin each side-panel column to the edge of the window.
-   :has() shrinks Quarto's page-columns grid so the centred body column
-   slides inward and does not run under a pinned panel. */
+   Reserve equal padding on both sides of #quarto-content, unconditionally,
+   so the centred main column is the same width on every page — whether it
+   carries a .side-panel-left, Quarto's TOC sidebar, or nothing at all. */
 @media (min-width: 1400px) {
   .side-panel-left,
-  .side-panel-right {
+  .side-panel-right,
+  #quarto-sidebar {
     position: fixed !important;
     top: var(--side-top);
     width: var(--side-w);
@@ -129,7 +145,8 @@ nav#TOC > ul { font-size: 0.82rem; }
     overflow-y: auto;
     z-index: 500;
   }
-  .side-panel-left  { left:  var(--side-offset); }
+  .side-panel-left,
+  #quarto-sidebar { left:  var(--side-offset); }
   .side-panel-right { right: var(--side-offset); }
 
   /* Stack wrapper: multiple cards share one pinned column. */
@@ -139,11 +156,17 @@ nav#TOC > ul { font-size: 0.82rem; }
     gap: var(--side-gap);
   }
 
-  body:has(.side-panel-left) #quarto-content {
-    padding-left: calc(var(--side-w) + 1.25rem);
+  #quarto-content {
+    padding-left: calc(var(--side-w) + var(--side-offset) + var(--side-inside-gap));
+    padding-right: calc(var(--side-w) + var(--side-offset) + var(--side-inside-gap));
   }
-  body:has(.side-panel-right) #quarto-content {
-    padding-right: calc(var(--side-w) + 1.25rem);
+
+  /* Pin the centred body column to --content-w regardless of which grid
+     template Quarto picked for this page (toc-left, fullcontent, etc.). */
+  main.content {
+    max-width: var(--content-w) !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
   }
 }
 
