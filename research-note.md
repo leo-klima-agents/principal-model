@@ -188,8 +188,8 @@ This is the handle for Phase C hedging: the natural static hedge for the princip
 
 | | Fee-based | Principal 3a (matched) | Principal 3b (back-to-back) |
 | --- | --- | --- | --- |
-| $\mathbb{E}[\text{P\&L}]$ | $f \cdot P \cdot \lambda \cdot \mathbb{E}[I_T]$ | $N \cdot (Q - P \cdot S_0)$ | $Q \cdot N - P \cdot \lambda \cdot \mathbb{E}[I_T]$ |
-| $\mathrm{Var}[\text{P\&L}]$ | $(f P \lambda)^2 \cdot \mathrm{Var}[I_T]$ | $0$ (terminal) | $(P \lambda)^2 \cdot \mathrm{Var}[I_T]$ |
+| $\mathbb{E}[\Pi]$ | $f \cdot P \cdot \lambda \cdot \mathbb{E}[I_T]$ | $N \cdot (Q - P \cdot S_0)$ | $Q \cdot N - P \cdot \lambda \cdot \mathbb{E}[I_T]$ |
+| $\mathrm{Var}[\Pi]$ | $(f P \lambda)^2 \cdot \mathrm{Var}[I_T]$ | $0$ (terminal) | $(P \lambda)^2 \cdot \mathrm{Var}[I_T]$ |
 | kVCM exposure | long | none (terminal), long (interim NAV) | short |
 | Downside | bounded below by 0 | deterministic | unbounded |
 | Capital requirement | none | $N \cdot P \cdot S_0$ | none |
