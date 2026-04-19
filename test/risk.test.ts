@@ -33,14 +33,22 @@ describe("quantile", () => {
 describe("valueAtRisk / conditionalVaR", () => {
   it("VaR and CVaR on a symmetric sample around zero are ~ the tail cutoff", () => {
     // Π sample uniform on [-1, 1]: VaR_95(L) is the 0.05-quantile of Π, negated.
-    const xs = new Float64Array(10_000);
+    const n = 10_000;
+    const xs = new Float64Array(n);
     for (let i = 0; i < xs.length; i++) {
       xs[i] = -1 + (2 * i) / (xs.length - 1);
     }
-    expect(valueAtRisk(xs, 0.95)).toBeCloseTo(0.9, 2);
-    // CVaR_95 is the mean of the worst 5% — midpoint of [-1, -0.9] ≈ -0.95,
-    // reported as its negation.
-    expect(conditionalVaR(xs, 0.95)).toBeCloseTo(0.95, 2);
+    // 10 000-point evenly-spaced grid ⇒ linear-interpolation 0.05-quantile
+    // lands on exactly -0.9, so VaR is pinned there to machine precision.
+    expect(valueAtRisk(xs, 0.95)).toBeCloseTo(0.9, 8);
+    // CVaR_95 = (1/k)·Σ_{i=0}^{k−1} xs[i] on the evenly-spaced grid
+    // collapses to −1 + (k−1)/(n−1), where k = ceil((1 − 0.95)·n). Use the
+    // same expression the implementation evaluates so that floating-point
+    // rounding of (1 − 0.95) lines up (k lands at 501, not 500, because
+    // (1 − 0.95)·10000 > 500 in IEEE-754).
+    const k = Math.ceil((1 - 0.95) * n);
+    const exactCvar = 1 - (k - 1) / (n - 1);
+    expect(conditionalVaR(xs, 0.95)).toBeCloseTo(exactCvar, 10);
   });
 
   it("CVaR ≥ VaR always (on the loss scale)", () => {

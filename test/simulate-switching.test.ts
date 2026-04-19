@@ -359,9 +359,13 @@ describe("moments.ts — first-passage helpers", () => {
   });
 
   it("standardNormalCdf matches known anchor values", () => {
+    // A&S 7.1.26 bounds the erf approximation at |ε| < 1.5e-7, so the CDF
+    // should hold ~6 digits; assert at that precision instead of the 3-digit
+    // band the test originally used. Anchors are full-precision Φ values
+    // (Φ(1.96) = 0.97500210..., Φ(−2) = 0.02275013...).
     expect(standardNormalCdf(0)).toBeCloseTo(0.5, 7);
-    expect(standardNormalCdf(1.96)).toBeCloseTo(0.975, 3);
-    expect(standardNormalCdf(-2)).toBeCloseTo(0.02275, 3);
+    expect(standardNormalCdf(1.96)).toBeCloseTo(0.9750021048517795, 6);
+    expect(standardNormalCdf(-2)).toBeCloseTo(0.022750131948179195, 6);
   });
 
   it("expectedHittingTime ≤ T always", () => {

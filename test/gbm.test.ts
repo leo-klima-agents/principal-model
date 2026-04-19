@@ -18,10 +18,11 @@ describe("samplePath", () => {
       const tk = k / 100;
       expect(path.S[k]).toBeCloseTo(Math.exp(0.1 * tk), 10);
     }
-    // Trapezoidal quadrature of e^{0.1 t} on [0,1] equals (e^{0.1} − 1)/0.1
-    // up to O(Δ²) error.
+    // Trapezoidal quadrature of e^{0.1 t} on [0,1] at h = 0.01 has bias
+    // −h²/12 · (f'(1) − f'(0)) ≈ −8.8·10⁻⁸; assert at 6-digit precision
+    // (tolerance 5·10⁻⁷) to actually constrain the quadrature weights.
     const exactIt = Math.expm1(0.1) / 0.1;
-    expect(path.IT).toBeCloseTo(exactIt, 3);
+    expect(path.IT).toBeCloseTo(exactIt, 6);
   });
 
   it("terminal mean matches S_0 · e^{μT}", () => {

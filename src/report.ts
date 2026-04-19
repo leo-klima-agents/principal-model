@@ -80,7 +80,7 @@ export interface Report {
   };
 }
 
-function makeRow(
+export function makeRow(
   name: string,
   closedMean: number,
   closedSd: number,
@@ -106,7 +106,7 @@ function makeRow(
   };
 }
 
-function histogram(
+export function histogram(
   samples: Float64Array,
   nBins: number,
 ): { edges: number[]; counts: number[] } {
@@ -133,7 +133,7 @@ function histogram(
   return { edges, counts };
 }
 
-function subsample(samples: Float64Array, n: number): number[] {
+export function subsample(samples: Float64Array, n: number): number[] {
   const step = Math.max(1, Math.floor(samples.length / n));
   const out: number[] = [];
   for (let i = 0; i < samples.length && out.length < n; i += step) {
@@ -263,7 +263,7 @@ export function buildReport(
 // §3e scorecard row: MC-only, no closed-form mean/sd (so NaN-flag those and
 // zero out the z-score). VaR/CVaR/probLoss/Sharpe come from the standard
 // path-sample closure, identical to every other row.
-function makeSwitchingRow(samples: Float64Array): ModelRow {
+export function makeSwitchingRow(samples: Float64Array): ModelRow {
   const stats = summarize(samples);
   const sharpe = stats.sd > 0 ? stats.mean / stats.sd : null;
   return {
