@@ -74,8 +74,8 @@ The findings above describe *averages* over all futures the price
 model allows. To test a specific story — *"what if the token crashes
 at mid-year?"*, *"what if we replay the last twelve months of kVCM?"*
 — fix one trajectory and read the P&L straight off it. Draw (or
-click-and-drag) the curve below; the three books' P&L recomputes in
-real time, alongside the comparable Monte Carlo mean. Toolbar presets
+click-and-drag) the curve below; every book's P&L recomputes in real
+time, alongside the comparable Monte Carlo mean. Toolbar presets
 (crash, spike, linear ±50%, historical kVCM) cover the common cases.
 
 ::: {.callout-note appearance="simple"}
@@ -83,10 +83,11 @@ real time, alongside the comparable Monte Carlo mean. Toolbar presets
 
 The drawn samples define a base path. With noise variance
 $\sigma^2_{\mathrm{noise}} > 0$, an accumulated log-normal shock is
-layered on top (seeded by the PRNG slider for reproducibility). All
-three books use the same formulas as the Monte Carlo: $I_T$ and the
-tail integral are taken over the realised path by the trapezoid rule;
-$S_T$ is the last sample. Leave noise at zero to read deterministic
+layered on top (seeded by the PRNG slider for reproducibility). Every
+book uses the same formulas as the Monte Carlo: $I_T$, the tail
+integral, and (for switching) the barrier split $I_\tau / J_\tau$ are
+taken over the realised path by the trapezoid rule; $S_T$ is the last
+sample. Leave noise at zero to read deterministic
 P&L off the curve; raise it to test how robust a narrative is to
 typical day-to-day jitter.
 :::
@@ -209,6 +210,47 @@ viewof Q = Inputs.range([0, 1000], { step: 0.5, value: 180, label: "fixed quote 
 viewof fee = Inputs.range([0, 1], { step: 0.01, value: 0.4, label: "fee rate f" })
 ```
 
+### Syndication
+
+```{ojs}
+//| echo: false
+viewof beta = Inputs.range([0, 1], { step: 0.01, value: 0, label: "cession β" })
+```
+
+```{ojs}
+//| echo: false
+viewof theta = Inputs.range([0, 1], { step: 0.01, value: 0, label: "counterparty load θ" })
+```
+
+```{ojs}
+//| echo: false
+viewof premiumMode = Inputs.radio(["sharpe", "cvar"], { value: "sharpe", label: "premium mode" })
+```
+
+### Switching
+
+```{ojs}
+//| echo: false
+viewof barrierRatio = Inputs.range([1, 3], { step: 0.01, value: 3, label: "switching barrier h = H/S₀ (3 ≈ no switch)" })
+```
+
+```{ojs}
+//| echo: false
+viewof feePostLocked = Inputs.toggle({ label: "lock f_post to f", value: true })
+```
+
+```{ojs}
+//| echo: false
+viewof feePostSlider = Inputs.range([0, 1], { step: 0.01, value: 0.4, label: "post-switch fee rate f_post" })
+```
+
+```{ojs}
+//| echo: false
+// null when locked (simulateSwitching interprets this as "use inputs.fee");
+// a numeric value when the user wants an independent post-switch rate.
+feePost = feePostLocked ? null : feePostSlider
+```
+
 ### Curve settings
 
 ```{ojs}
@@ -239,12 +281,17 @@ findingsResetButton = {
     pi0: 125, P: 1790,
     lambdaDay: 1, kPre: 300000, cBasis: 21000,
     Tdays: defaultTdays, Q: 180, fee: 0.4,
+    beta: 0, theta: 0, premiumMode: "sharpe",
+    barrierRatio: 3, feePostLocked: true, feePostSlider: 0.4,
     curveYMax: 0.2, curveVar: 0, seed: 42,
   };
   const views = {
     pi0: viewof pi0, P: viewof P,
     lambdaDay: viewof lambdaDay, kPre: viewof kPre, cBasis: viewof cBasis,
     Tdays: viewof Tdays, Q: viewof Q, fee: viewof fee,
+    beta: viewof beta, theta: viewof theta, premiumMode: viewof premiumMode,
+    barrierRatio: viewof barrierRatio, feePostLocked: viewof feePostLocked,
+    feePostSlider: viewof feePostSlider,
     curveYMax: viewof curveYMax, curveVar: viewof curveVar, seed: viewof seed,
   };
   const wrap = document.createElement("div");
@@ -270,7 +317,7 @@ findingsResetButton = {
 //| echo: false
 import {
   mulberry32, xTicksAnchoredRight, formatTickDate,
-  simulate, summarise,
+  simulate, simulateSwitching, summarise,
 } from "./lib/compiled/src/core/index.js"
 ```
 
@@ -295,6 +342,7 @@ run = {
     S0: derived.S0, mu: 0.05, sigma: Math.sqrt(0.25), P,
     lambda: derived.lambda, T: derived.T,
     Q, fee, kPre, cBasis,
+    beta, premiumLoad: theta, premiumMode,
     nPaths: 5000, nSteps: 100, seed,
   };
   const raw = simulate(inputs);
@@ -303,8 +351,29 @@ run = {
     ...raw,
     fee: summarise(raw.feeSamples),
     principal: summarise(raw.principalSamples),
+    retained: summarise(raw.retainedSamples),
     b2b: summarise(raw.b2bSamples),
   };
+}
+```
+
+```{ojs}
+//| echo: false
+// Switching-book MC sibling. Shares `seed` with `run` so the GBM path draws
+// coincide bit-for-bit (see src/core/simulate-switching.ts:10-13). α = 0 and
+// β = 0 here — the partial lever is already expressed via kPre/cBasis, and
+// composing with β would double-count the cession applied by the retained
+// row above.
+switchRun = {
+  const inputs = {
+    S0: derived.S0, mu: 0.05, sigma: Math.sqrt(0.25), P,
+    lambda: derived.lambda, T: derived.T,
+    Q, fee, alpha: 0, beta: 0, premiumLoad: 0, premiumMode,
+    barrierRatio, feePost,
+    nPaths: 5000, nSteps: 100, seed,
+  };
+  const raw = simulateSwitching(inputs);
+  return { inputs, ...raw, summary: summarise(raw.pnlSamples) };
 }
 ```
 
@@ -705,6 +774,37 @@ customScenario = {
   const b2b = Q * N - P * lam * IT;
   const cust = Q * N - cBasis - P * lam * tailInt + tokensLeftover * ST;
 
+  // Retained (syndicated) — same closure as src/core/simulate-run.ts:137,154-158
+  // applied to the drawn-curve custom P&L. The premium scalar comes from the
+  // MC run (run.premium), identical to the pattern the MC row uses.
+  const detShift = Q * N - cBasis;
+  const retainedDet = detShift + (1 - beta) * (cust - detShift) + run.premium;
+
+  // Switching — walk the realised path, bucket trapezoid pieces into I_τ / J_τ.
+  // Barrier convention matches src/core/simulate-switching.ts:169-179: the step
+  // that completes the crossing belongs to I_τ, τ = k·dt; h ≤ 1 fires at t=0.
+  const H = barrierRatio * derived.S0;
+  let switched = barrierRatio <= 1;
+  let tauTime = switched ? 0 : T;
+  let crossed = switched;
+  let ITau = 0;
+  let JTau = 0;
+  for (let k = 1; k < nPoints; k++) {
+    const piece = 0.5 * (realised[k - 1] + realised[k]) * dt;
+    if (!switched && realised[k] >= H) {
+      tauTime = k * dt;
+      switched = true;
+      crossed = true;
+      ITau += piece;
+    } else if (!switched) {
+      ITau += piece;
+    } else {
+      JTau += piece;
+    }
+  }
+  const fPost = feePost ?? fee;
+  const switchingDet = Q * lam * tauTime - P * lam * ITau + fPost * P * lam * JTau;
+
   let maxS = -Infinity, minS = Infinity;
   for (let k = 0; k < nPoints; k++) {
     if (realised[k] > maxS) maxS = realised[k];
@@ -712,7 +812,11 @@ customScenario = {
   }
   const meanS = IT / T;
 
-  return { base, realised, nPoints, IT, tailInt, ST, tauFrac, tokensLeftover, feeRev, b2b, cust, maxS, minS, meanS };
+  return {
+    base, realised, nPoints, IT, tailInt, ST, tauFrac, tokensLeftover,
+    feeRev, b2b, cust, retainedDet, switchingDet, crossed, tauTime,
+    maxS, minS, meanS,
+  };
 }
 ```
 
@@ -725,9 +829,11 @@ realisations._
 
 Summary cards give you the one-point statistics of the realised path
 (min/max, its mean $I_T/T$, terminal $S_T$, and the tail integral
-$J_\tau$). The table below the cards lists the three books' P&L on the
+$J_\tau$). The table below the cards lists each book's P&L on the
 drawn curve alongside the MC mean, plus the difference — the headline
-stress-test number.
+stress-test number. The retained (syndicated) and switching rows
+mirror the Simulator's five-book table; the switching row appears
+only when the barrier $h$ is below 3.
 
 ```{ojs}
 //| echo: false
@@ -742,9 +848,16 @@ html`<div class="phase-c-derived">
 ```{ojs}
 //| echo: false
 customRows = [
-  { book: "fee",                      pnl: customScenario.feeRev, mcMean: run.fee.mean,       diff: customScenario.feeRev - run.fee.mean },
-  { book: "principal (custom)",       pnl: customScenario.cust,   mcMean: run.principal.mean, diff: customScenario.cust   - run.principal.mean },
-  { book: "principal (back-to-back)", pnl: customScenario.b2b,    mcMean: run.b2b.mean,       diff: customScenario.b2b    - run.b2b.mean },
+  { book: "fee",                              pnl: customScenario.feeRev,      mcMean: run.fee.mean,       diff: customScenario.feeRev      - run.fee.mean },
+  { book: "principal (custom)",               pnl: customScenario.cust,        mcMean: run.principal.mean, diff: customScenario.cust        - run.principal.mean },
+  { book: "principal (retained, syndicated)", pnl: customScenario.retainedDet, mcMean: run.retained.mean,  diff: customScenario.retainedDet - run.retained.mean },
+  { book: "principal (back-to-back)",         pnl: customScenario.b2b,         mcMean: run.b2b.mean,       diff: customScenario.b2b         - run.b2b.mean },
+  // Switching row only when the barrier is active, matching phase-c.qmd:424.
+  ...(isFinite(barrierRatio) && barrierRatio < 3
+    ? [{ book: `principal (switching, h=${barrierRatio.toFixed(2)})`,
+         pnl: customScenario.switchingDet, mcMean: switchRun.summary.mean,
+         diff: customScenario.switchingDet - switchRun.summary.mean }]
+    : []),
 ]
 ```
 
@@ -780,6 +893,15 @@ specific scenario compares to the average across random GBM futures._
 - **Diff ≈ 0.** The curve is "typical": a plausible GBM future, not
   a stress scenario. At $\tau = 1$ the custom book is deterministic
   and path-independent, so expect zero sensitivity to the curve.
+- **Retained (syndicated).** At $\beta = 0$ the row sits on top of
+  the custom row; raising $\beta$ shrinks `pnl − (Q N − C_{basis})`
+  by a factor of $(1-\beta)$ and adds back the MC-priced premium —
+  cession is a linear dial on how much of the custom-row diff
+  survives to the book.
+- **Switching.** Meaningful only when the drawn path crosses
+  $H = h \cdot S_0$ before $T$. At $h \le 1$ the barrier fires at
+  $t = 0$ and the drawn row collapses to $f_\mathrm{post} \cdot P
+  \cdot \lambda \cdot I_T$. At $h \ge 3$ the row is hidden.
 
 ## Scope
 
