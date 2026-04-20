@@ -481,6 +481,10 @@ viewof customCurve = {
   const sigmaN = Math.sqrt(curveVar);
   const dt = derived.T / (nPoints - 1);
   const seedVal = seed;
+  const muVal = mu;
+  const lambdaJVal = lambdaJ;
+  const muJVal = muJ;
+  const sigmaJVal = sigmaJ;
 
   // Persist the drawn curve indexed by days-ago (0 = build-time anchor)
   // so shrinking and regrowing the horizon restores the previously
@@ -495,6 +499,14 @@ viewof customCurve = {
     master.fill(NaN);
     window[masterKey] = master;
   }
+
+  // "random" means the Random path preset is live: a slider nudge
+  // regenerates the path + cloud from the current params. Anything
+  // else (drawn curves, other presets, Historical) stays put when
+  // the jump sliders move. Persisted in window so the flag survives
+  // cell re-runs.
+  const modeKey = "__findingsCustomCurveMode";
+  if (typeof window[modeKey] !== "string") window[modeKey] = "custom";
 
   // Seed the canvas with the historical series on first page load. The
   // one-shot window flag is required: without it, every slider-driven
@@ -515,6 +527,33 @@ viewof customCurve = {
     const daysAgo = nPoints - 1 - i;
     const stored = master[daysAgo];
     values[i] = isNaN(stored) ? S0Val : stored;
+  }
+
+  // Sample cloud built the same way as the simulator page: one
+  // mulberry32(seed) stream, samplePath consumed sequentially
+  // (mirrors src/core/simulate-run.ts:81, 103-104), so identical
+  // (seed, μ, σ, λ_J, μ_J, σ_J, T, S₀) produce identical clouds on
+  // both pages. Path 0 is the one the Random path preset promotes to
+  // the drawn (orange) curve — same convention as the simulator's
+  // highlighted first path.
+  const N_CLOUD = 20;
+  const cloudRng = mulberry32(seedVal);
+  const cloud = new Array(N_CLOUD);
+  for (let j = 0; j < N_CLOUD; j++) {
+    const { S } = samplePath(cloudRng, {
+      S0: S0Val,
+      mu: muVal,
+      sigma: derived.sigma,
+      T: derived.T,
+      nSteps: nPoints - 1,
+      lambdaJ: lambdaJVal, muJ: muJVal, sigmaJ: sigmaJVal,
+    });
+    cloud[j] = S;
+  }
+
+  if (window[modeKey] === "random") {
+    for (let i = 0; i < nPoints; i++) values[i] = cloud[0][i];
+    for (let i = 0; i < nPoints; i++) master[nPoints - 1 - i] = values[i];
   }
 
   const container = document.createElement("div");
@@ -625,6 +664,24 @@ viewof customCurve = {
       ctx.fillText("S₀", margin.left + 4, priceToY(S0Val) - 2);
     }
 
+    const showCloud = lambdaJVal > 0 || derived.sigma > 0;
+    if (showCloud) {
+      ctx.strokeStyle = "#888";
+      ctx.globalAlpha = 0.35;
+      ctx.lineWidth = 1;
+      ctx.lineJoin = "round";
+      for (let j = 0; j < cloud.length; j++) {
+        const S = cloud[j];
+        ctx.beginPath();
+        ctx.moveTo(indexToX(0), priceToY(Math.min(yMax, Math.max(0, S[0]))));
+        for (let i = 1; i < nPoints; i++) {
+          ctx.lineTo(indexToX(i), priceToY(Math.min(yMax, Math.max(0, S[i]))));
+        }
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+    }
+
     if (sigmaN > 0) {
       ctx.strokeStyle = "#4c78a8";
       ctx.globalAlpha = 0.7;
@@ -647,35 +704,40 @@ viewof customCurve = {
     for (let i = 1; i < nPoints; i++) ctx.lineTo(indexToX(i), priceToY(values[i]));
     ctx.stroke();
 
-    if (sigmaN > 0) {
+    if (sigmaN > 0 || showCloud) {
+      const rows = [];
+      rows.push({ color: "#c94", width: 2, alpha: 1, label: "drawn (base)" });
+      if (sigmaN > 0) {
+        rows.push({ color: "#4c78a8", width: 1.5, alpha: 0.7, label: "realised (+ noise)" });
+      }
+      if (showCloud) {
+        rows.push({ color: "#888", width: 1, alpha: 0.35, label: "sampled paths" });
+      }
+      const boxH = 6 + rows.length * 16;
       const lx = margin.left + plotW - 140;
       const ly = margin.top + 8;
       ctx.fillStyle = "rgba(255,255,255,0.85)";
-      ctx.fillRect(lx - 6, ly - 2, 140, 34);
+      ctx.fillRect(lx - 6, ly - 2, 140, boxH);
       ctx.strokeStyle = "#ccc";
       ctx.lineWidth = 1;
-      ctx.strokeRect(lx - 6, ly - 2, 140, 34);
+      ctx.strokeRect(lx - 6, ly - 2, 140, boxH);
       ctx.font = "11px ui-monospace, monospace";
       ctx.textAlign = "left";
       ctx.textBaseline = "middle";
-      ctx.strokeStyle = "#c94";
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(lx, ly + 5);
-      ctx.lineTo(lx + 18, ly + 5);
-      ctx.stroke();
-      ctx.fillStyle = "#333";
-      ctx.fillText("drawn (base)", lx + 22, ly + 5);
-      ctx.strokeStyle = "#4c78a8";
-      ctx.lineWidth = 1.5;
-      ctx.globalAlpha = 0.7;
-      ctx.beginPath();
-      ctx.moveTo(lx, ly + 21);
-      ctx.lineTo(lx + 18, ly + 21);
-      ctx.stroke();
-      ctx.globalAlpha = 1;
-      ctx.fillStyle = "#333";
-      ctx.fillText("realised (+ noise)", lx + 22, ly + 21);
+      for (let r = 0; r < rows.length; r++) {
+        const row = rows[r];
+        const y = ly + 5 + r * 16;
+        ctx.strokeStyle = row.color;
+        ctx.lineWidth = row.width;
+        ctx.globalAlpha = row.alpha;
+        ctx.beginPath();
+        ctx.moveTo(lx, y);
+        ctx.lineTo(lx + 18, y);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = "#333";
+        ctx.fillText(row.label, lx + 22, y);
+      }
     }
   }
 
@@ -716,6 +778,7 @@ viewof customCurve = {
   }
 
   canvas.addEventListener("pointerdown", (ev) => {
+    window[modeKey] = "custom";
     ev.preventDefault();
     drawing = true;
     lastIdx = null;
@@ -740,6 +803,7 @@ viewof customCurve = {
   canvas.addEventListener("pointercancel", endStroke);
 
   function setPreset(fn) {
+    window[modeKey] = "custom";
     for (let i = 0; i < nPoints; i++) values[i] = fn(i / (nPoints - 1));
     redraw();
     emit();
@@ -765,28 +829,23 @@ viewof customCurve = {
     });
   });
   addButton("Random path", () => {
+    // Set the mode before the seed dispatch: the triggered cell re-run
+    // reads modeKey during init and regenerates the cloud + path 0
+    // from the new seed. Keeps a single regeneration codepath.
+    window[modeKey] = "random";
     const newSeed = 1 + Math.floor(Math.random() * 9999);
     const seedView = viewof seed;
     seedView.value = newSeed;
     seedView.dispatchEvent(new CustomEvent("input", { bubbles: true }));
-    const rng = mulberry32(newSeed);
-    const { S } = samplePath(rng, {
-      S0: S0Val,
-      mu,
-      sigma: derived.sigma,
-      T: derived.T,
-      nSteps: nPoints - 1,
-      lambdaJ, muJ, sigmaJ,
-    });
-    for (let i = 0; i < nPoints; i++) values[i] = S[i];
-    redraw();
-    emit();
   });
   const historicalBtn = document.createElement("button");
   historicalBtn.type = "button";
   historicalBtn.textContent = history.length >= 2 ? "Historical" : "Historical (unavailable)";
   historicalBtn.disabled = history.length < 2;
   historicalBtn.addEventListener("click", () => {
+    // Flag must be set before the Tdays dispatch so the re-run picks
+    // it up and skips random-path regeneration.
+    window[modeKey] = "custom";
     // Right-align the daily historical series: the most recent sample
     // lands on today (rightmost point) and earlier samples fill back
     // in toward the left.
