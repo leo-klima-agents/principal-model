@@ -106,10 +106,15 @@ nav#TOC > ul { font-size: 0.78rem; }
     margin-left: calc(var(--side-offset) - 50vw + 50%);
   }
 
-  /* Quarto's own TOC sidebar is not declared inline in markdown — it's
-     rendered outside main.content — so it can't use sticky-from-flow and
-     stays on the fixed-to-viewport path. */
-  #quarto-sidebar {
+  /* Quarto's margin sidebar — where `toc-location: right` puts the TOC
+     (inside `nav#TOC`) — is emitted as a grid sibling of main.content,
+     not inline in markdown, so it can't use sticky-from-flow and stays
+     on the fixed-to-viewport path. display/visibility overrides defeat
+     Quarto's own hide-the-margin-sidebar rules at mid-range viewport
+     widths, which would otherwise leave pages with a TOC blank here. */
+  #quarto-margin-sidebar {
+    display: block !important;
+    visibility: visible !important;
     position: fixed !important;
     top: var(--side-top);
     right: var(--side-offset);
