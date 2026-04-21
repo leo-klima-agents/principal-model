@@ -460,7 +460,7 @@ viewof customCurve = {
 
   // Mirrors simulator's mulberry32(seed) + samplePath; same
   // (seed, μ, σ, λ_J, μ_J, σ_J, T, S₀) yield identical clouds on
-  // both pages. Path 0 is promoted to the drawn curve by "Random path".
+  // both pages. Path 0 is promoted to the drawn curve by "Random".
   const N_CLOUD = 20;
   const cloudRng = mulberry32(seedVal);
   const cloud = new Array(N_CLOUD);
@@ -716,7 +716,7 @@ viewof customCurve = {
       return S0Val + (peak - S0Val) * Math.exp(-80 * d * d);
     });
   });
-  addButton("Random path", () => {
+  addButton("Random", () => {
     // Set mode before seed dispatch so the re-run reads modeKey at init.
     window[modeKey] = "random";
     const newSeed = 1 + Math.floor(Math.random() * 9999);
