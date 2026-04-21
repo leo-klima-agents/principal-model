@@ -220,7 +220,13 @@ The `matched` row confirms the deterministic identity $N(Q - P S_0)$
 to machine precision. The `partial_desk` row tracks the $J_\alpha$
 closed form to within sampling noise.
 
-## Jumps inflate variance, not mean
+## Distribution checks
+
+The three sub-sections below move from moment-level checks on the
+Merton compensation to full empirical distributions of per-book
+P&L and of the driving integral $I_T$.
+
+### Mean invariance under Merton
 
 With the [Merton compensation](model.qmd#jumps) in place, means
 match pure GBM exactly and variances grow. The canonical overlay
@@ -277,7 +283,7 @@ html`<div class="metric-grid">
 </div>`
 ```
 
-## P&L distributions
+### P&L distributions
 
 The panels below show one empirical histogram per stochastic book;
 the x-axis is terminal P&L in USD, and the y-axis is empirical
@@ -342,7 +348,7 @@ _Black: closed-form $\mathbb{E}[\Pi]$. Dashed grey: $\Pi = 0$._
 The black rule lands inside every histogram hump, confirming that
 the closed-form means match the empirical distributions.
 
-## The $I_T$ histogram
+### The $I_T$ histogram
 
 The histogram below shows the Monte Carlo distribution of the spot
 integral $I_T = \int_0^T S_t \, dt$. The solid black rule marks the
@@ -386,7 +392,13 @@ _Black: $\mathbb{E}[I_T]$. Dashed: $\pm \mathrm{SD}[I_T]$._
 The empirical histogram is visibly asymmetric and sits to the right
 of the mean, which is the lognormal skew of $I_T$ coming through.
 
-## Matched treasury NAV over time
+## Matched treasury
+
+The matched treasury has deterministic terminal P&L by
+construction, but its interim NAV path and intra-horizon drawdown
+are the funding-risk profile the shape hides.
+
+### NAV over time
 
 Terminal P&L of the matched treasury is deterministic, but the
 interim NAV $V_t = N P (1 - t/T) S_t$ is a scaled GBM that pins to
@@ -435,7 +447,7 @@ _$V_T = 0$ regardless of $S_T$._
 All paths terminate at zero because the $(1 - t/T)$ factor kills
 the NAV at $T$, but several paths dip well below zero mid-horizon.
 
-## Matched treasury shortfall
+### Shortfall
 
 We define the worst interim NAV drawdown as
 
