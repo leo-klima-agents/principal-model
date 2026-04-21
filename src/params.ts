@@ -43,17 +43,16 @@ export interface Params {
 }
 
 // μ, σ, λ_J, μ_J, σ_J: calibrated from report/data/kvcm-historical.json
-// (5σ-bulk Merton split). S0, P, Q, f, λ, T, α at scale-free research-note
-// values.
+// (5σ-bulk Merton split).
 export const defaultParams: Params = {
-  S0: 1.0,
+  S0: 0.0625,
   mu: -0.1,
   sigma: 0.25,
-  P: 1.0,
-  lambda: 1_000,
+  P: 2_000,
+  lambda: 365,
   T: 1.0,
-  f: 0.05,
-  Q: 1.08,
+  f: 0.4,
+  Q: 175,
   alpha: 0.5,
 
   beta: 0,

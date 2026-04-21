@@ -30,7 +30,7 @@ MC mean against its closed-form target; treat $|z| \le 2$ as
 sampling noise and $|z| > 3$ as suspect. Three identities are exact
 rather than statistical:
 $\mathrm{Var}[\Pi_{\mathrm{b2b}}] / \mathrm{Var}[R_{\mathrm{fee}}] =
-(P/f)^2$ is algebraic, $b2b + \mathrm{treasury}(N P, N P S_0) = N(Q
+1 / f^2$ is algebraic, $b2b + \mathrm{treasury}(N P, N P S_0) = N(Q
 - P S_0)$ holds path by path, and $\mathrm{SD}[\Pi_{\mathrm{ret}}] =
 (1 - \beta) \mathrm{SD}[\Pi_{\mathrm{b2b}}]$ is an identity. Full
 symbol and risk-metric definitions: [Setup and
@@ -429,7 +429,7 @@ viewof pickAlpha = Inputs.range([0,1], { step: 0.25, value: 0.5, label: "coverag
 
 ```{ojs}
 //| echo: false
-viewof pickMu = Inputs.select(sweep.grid.mus, { value: 0.05, label: "drift μ (/yr)" })
+viewof pickMu = Inputs.select(sweep.grid.mus, { value: -0.1, label: "drift μ (/yr)" })
 ```
 
 ### Tail risk vs volatility $\sigma$

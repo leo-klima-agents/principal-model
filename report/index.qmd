@@ -75,14 +75,12 @@ recomputes against its Monte Carlo mean.
 ::: {.callout-note appearance="simple"}
 ## How the drawn curve enters the books
 
-The drawn curve defines a base path. Setting the path-noise
-variance $\sigma^2_{\mathrm{noise}} > 0$ adds a log-normal shock
-around it, distinct from the GBM dynamics (drift $\mu$, diffusion
-$\sigma$, annualised) that drive the comparison Monte Carlo,
-seeded by the PRNG slider. A trapezoid rule over the realised path
-yields $I_T$, the uncovered tail $J_\alpha$, the switching split
-against $H = h S_0$, and the terminal spot $S_T$. These feed every
-book on the [Simulator](simulator.qmd).
+A trapezoid rule over the drawn path yields $I_T$, the uncovered tail
+$J_\alpha$, the switching split against $H = h S_0$, and the terminal
+spot $S_T$. These feed every book on the [Simulator](simulator.qmd).
+The GBM/Merton dynamics (drift $\mu$, diffusion $\sigma$, jumps
+$\lambda_J, \mu_J, \sigma_J$) drive only the overlaid comparison
+Monte Carlo, seeded by the PRNG slider.
 :::
 
 Buttons along the top load common shapes: a flat path at $S_0$, a
@@ -122,38 +120,46 @@ buildDate = {
 ::: {.side-panel-left .side-panel .pc-controls}
 ### Inputs
 
-Inventory, contract, horizon, and price-process parameters. Jumps
-(Merton overlay with intensity $\lambda_J$, mean log-jump $\mu_J$,
-log-jump SD $\sigma_J$) are off by default ($\lambda_J = 0$); the
-[Simulator](simulator.qmd) page exposes wider ranges.
+Inventory, contract, horizon, and price-process parameters. The
+Merton overlay ($\lambda_J$, $\mu_J$, $\sigma_J$) is on by default at
+the 5σ-bulk calibration of `data/kvcm-historical.json`; ranges and
+defaults match the [Simulator](simulator.qmd) page.
 
 ### Price process
 
 ```{ojs}
 //| echo: false
-viewof pi0 = Inputs.range([0, 500], { step: 1, value: 125, label: "π₀ (USD / tonne)" })
+viewof pi0 = Inputs.range([0.1, 10000], { step: 0.01, value: 125, transform: Math.log, label: "π₀ (USD / tonne)" })
 ```
 
 ```{ojs}
 //| echo: false
-viewof P = Inputs.range([100, 25000], { step: 10, value: 1790, label: "P (kVCM / tonne)" })
+viewof P = Inputs.range([1, 100000], { step: 0.01, value: 2000, transform: Math.log, label: "P (kVCM / tonne)" })
 ```
 
 ```{ojs}
 //| echo: false
-viewof mu = Inputs.range([-1, 1], { step: 0.005, value: 0.05, label: "drift μ (annualised)" })
+viewof mu = Inputs.range([-2, 2], { step: 0.005, value: -0.1, label: "drift μ (annualised)" })
 ```
 
 ```{ojs}
 //| echo: false
-viewof sigma2 = Inputs.range([0, 3], { step: 0.005, value: 0.25, label: "variance σ² (annualised)" })
+viewof sigma2 = Inputs.range([0, 10], {
+  step: 0.001, value: 0.0625, label: "variance σ² (annualised)",
+  transform: x => Math.log(x + 1e-3),
+  invert: y => Math.max(0, Math.exp(y) - 1e-3),
+})
 ```
 
 ### Jumps (Merton)
 
 ```{ojs}
 //| echo: false
-viewof lambdaJ = Inputs.range([0, 50], { step: 0.1, value: 0, label: "jump intensity λ_J (/yr)" })
+viewof lambdaJ = Inputs.range([0, 100], {
+  step: 0.01, value: 20, label: "jump intensity λ_J (/yr)",
+  transform: x => Math.log(x + 1e-3),
+  invert: y => Math.max(0, Math.exp(y) - 1e-3),
+})
 ```
 
 ```{ojs}
@@ -170,17 +176,17 @@ viewof sigmaJ = Inputs.range([0, 1], { step: 0.01, value: 0.35, label: "log-jump
 
 ```{ojs}
 //| echo: false
-viewof lambdaDay = Inputs.range([0, 50], { step: 0.1, value: 1, label: "retirements (tonnes / day)" })
+viewof lambdaDay = Inputs.range([0.001, 10000], { step: 0.001, value: 1, transform: Math.log, label: "retirements (tonnes / day)" })
 ```
 
 ```{ojs}
 //| echo: false
-viewof kPre = Inputs.range([0, 2000000], { step: 1000, value: 300000, label: "initial inventory (kVCM)" })
+viewof kPre = Inputs.range([0, 1000000], { step: 1000, value: 300000, label: "initial inventory (kVCM)" })
 ```
 
 ```{ojs}
 //| echo: false
-viewof cBasis = Inputs.range([0, 1000000], { step: 100, value: 21000, label: "inventory basis (USD, total)" })
+viewof cBasis = Inputs.range([0, 100000], { step: 100, value: 20000, label: "inventory basis (USD, total)" })
 ```
 
 ### Contract
@@ -203,7 +209,7 @@ viewof Tdays = {
 
 ```{ojs}
 //| echo: false
-viewof Q = Inputs.range([0, 1000], { step: 0.5, value: 180, label: "fixed quote Q (USD / tonne)" })
+viewof Q = Inputs.range([0.1, 10000], { step: 0.01, value: 175, transform: Math.log, label: "fixed quote Q (USD / tonne)" })
 ```
 
 ```{ojs}
@@ -271,11 +277,6 @@ viewof curveYMax = Inputs.range([0.01, 3], { step: 0.005, value: 0.2, label: "ca
 
 ```{ojs}
 //| echo: false
-viewof curveVar = Inputs.range([0, 2.5], { step: 0.005, value: 0, label: "noise variance σ² (annualised)" })
-```
-
-```{ojs}
-//| echo: false
 viewof seed = Inputs.range([1, 9999], { step: 1, value: 42, label: "PRNG seed" })
 ```
 
@@ -289,15 +290,15 @@ findingsResetButton = {
     ? Math.max(30, Math.min(1095, hist.length - 1))
     : 365;
   const defaults = {
-    pi0: 125, P: 1790,
-    mu: 0.05, sigma2: 0.25,
-    lambdaJ: 0, muJ: -0.05, sigmaJ: 0.35,
-    lambdaDay: 1, kPre: 300000, cBasis: 21000,
-    Tdays: defaultTdays, Q: 180, fee: 0.4,
+    pi0: 125, P: 2000,
+    mu: -0.1, sigma2: 0.0625,
+    lambdaJ: 20, muJ: -0.05, sigmaJ: 0.35,
+    lambdaDay: 1, kPre: 300000, cBasis: 20000,
+    Tdays: defaultTdays, Q: 175, fee: 0.4,
     beta: 0, theta: 0, premiumMode: "sharpe",
     switchOn: false, barrierRatioSlider: 1.25,
     feePostLocked: true, feePostSlider: 0.4,
-    curveYMax: 0.2, curveVar: 0, seed: 42,
+    curveYMax: 0.2, seed: 42,
   };
   const views = {
     pi0: viewof pi0, P: viewof P,
@@ -308,7 +309,7 @@ findingsResetButton = {
     beta: viewof beta, theta: viewof theta, premiumMode: viewof premiumMode,
     switchOn: viewof switchOn, barrierRatioSlider: viewof barrierRatioSlider,
     feePostLocked: viewof feePostLocked, feePostSlider: viewof feePostSlider,
-    curveYMax: viewof curveYMax, curveVar: viewof curveVar, seed: viewof seed,
+    curveYMax: viewof curveYMax, seed: viewof seed,
   };
   const wrap = document.createElement("div");
   wrap.className = "pc-reset";
@@ -415,8 +416,6 @@ viewof customCurve = {
   const history = (historicalPrices && Array.isArray(historicalPrices.data))
     ? historicalPrices.data
     : [];
-  const sigmaN = Math.sqrt(curveVar);
-  const dt = derived.T / (nPoints - 1);
   const seedVal = seed;
   const muVal = mu;
   const lambdaJVal = lambdaJ;
@@ -504,28 +503,11 @@ viewof customCurve = {
   const yToPrice = (y) =>
     Math.max(0, Math.min(yMax, yMax - ((y - margin.top) / plotH) * yMax));
 
-  const realised = new Float64Array(nPoints);
-  function refreshRealised() {
-    if (sigmaN === 0) {
-      for (let k = 0; k < nPoints; k++) realised[k] = values[k];
-      return;
-    }
-    const rng = mulberry32(seedVal);
-    let logNoise = 0;
-    realised[0] = values[0];
-    for (let k = 1; k < nPoints; k++) {
-      const z = rng.normal();
-      logNoise += sigmaN * Math.sqrt(dt) * z - 0.5 * sigmaN * sigmaN * dt;
-      realised[k] = values[k] * Math.exp(logNoise);
-    }
-  }
-
   const DAY_MS = 86400000;
   const anchor = buildDate;
   const dateForDay = (d) => new Date(anchor.getTime() - (TDaysVal - d) * DAY_MS);
   const xTicks = xTicksAnchoredRight(TDaysVal);
   function redraw() {
-    refreshRealised();
     ctx.clearRect(0, 0, width, height);
     ctx.strokeStyle = "#e5e5e5";
     ctx.lineWidth = 1;
@@ -608,20 +590,6 @@ viewof customCurve = {
       ctx.globalAlpha = 1;
     }
 
-    if (sigmaN > 0) {
-      ctx.strokeStyle = "#4c78a8";
-      ctx.globalAlpha = 0.7;
-      ctx.lineWidth = 1.5;
-      ctx.lineJoin = "round";
-      ctx.beginPath();
-      ctx.moveTo(indexToX(0), priceToY(Math.min(yMax, Math.max(0, realised[0]))));
-      for (let i = 1; i < nPoints; i++) {
-        ctx.lineTo(indexToX(i), priceToY(Math.min(yMax, Math.max(0, realised[i]))));
-      }
-      ctx.stroke();
-      ctx.globalAlpha = 1;
-    }
-
     ctx.strokeStyle = "#c94";
     ctx.lineWidth = 2;
     ctx.lineJoin = "round";
@@ -630,15 +598,10 @@ viewof customCurve = {
     for (let i = 1; i < nPoints; i++) ctx.lineTo(indexToX(i), priceToY(values[i]));
     ctx.stroke();
 
-    if (sigmaN > 0 || showCloud) {
+    if (showCloud) {
       const rows = [];
       rows.push({ color: "#c94", width: 2, alpha: 1, label: "drawn (base)" });
-      if (sigmaN > 0) {
-        rows.push({ color: "#4c78a8", width: 1.5, alpha: 0.7, label: "realised (+ noise)" });
-      }
-      if (showCloud) {
-        rows.push({ color: "#888", width: 1, alpha: 0.35, label: "sampled paths" });
-      }
+      rows.push({ color: "#888", width: 1, alpha: 0.35, label: "sampled paths" });
       const boxH = 6 + rows.length * 16;
       const lx = margin.left + plotW - 140;
       const ly = margin.top + 8;
@@ -673,7 +636,6 @@ viewof customCurve = {
     }
     container.value = {
       values: Float64Array.from(values),
-      realised: Float64Array.from(realised),
       nPoints,
     };
     container.dispatchEvent(new CustomEvent("input", { bubbles: true }));
@@ -800,7 +762,6 @@ viewof customCurve = {
   redraw();
   container.value = {
     values: Float64Array.from(values),
-    realised: Float64Array.from(realised),
     nPoints,
   };
   return container;
@@ -810,7 +771,7 @@ viewof customCurve = {
 ```{ojs}
 //| echo: false
 customScenario = {
-  const { values: base, realised, nPoints } = customCurve;
+  const { values: base, nPoints } = customCurve;
   const T = derived.T;
   const lam = derived.lambda;
   const N = derived.N;
@@ -819,7 +780,7 @@ customScenario = {
   let IT = 0;
   for (let k = 0; k < nPoints; k++) {
     const w = (k === 0 || k === nPoints - 1) ? 0.5 : 1;
-    IT += w * realised[k];
+    IT += w * base[k];
   }
   IT *= dt;
 
@@ -831,29 +792,22 @@ customScenario = {
   let tailInt = 0;
   for (let k = tailStartIdx; k < nPoints; k++) {
     const w = (k === tailStartIdx || k === nPoints - 1) ? 0.5 : 1;
-    tailInt += w * realised[k];
+    tailInt += w * base[k];
   }
   tailInt *= dt;
   const consumptionInt = IT - tailInt;
 
-  const ST = realised[nPoints - 1];
+  const ST = base[nPoints - 1];
   const tokensLeftover = Math.max(0, kPre - lam * T * P);
   const feeRev = fee * P * lam * IT;
   const b2bOp = Q * N - P * lam * IT;
   const treasury = P * lam * consumptionInt + tokensLeftover * ST - cBasis;
   const customDesk = b2bOp + treasury;
 
-  // Retained operating book: (1 − β) · b2b + premium. The premium scalar comes
-  // from the MC run (run.premium), derived from the run's b2b sample moments.
   const retainedOp = (1 - beta) * b2bOp + run.premium;
 
-  // Switching: walk the realised path, bucket trapezoid pieces into
-  // I_b2b / I_fee per the Markov fee-mode indicator 1{S_t ≥ H}. Matches
-  // src/core/simulate-switching.ts exactly: the piece is bucketed by the
-  // indicator at step entry (S_{k-1} vs H). h ≤ 1 starts above the
-  // threshold ⇒ fee mode from t = 0.
   const H = barrierRatio * derived.S0;
-  let everCrossed = realised[0] >= H;
+  let everCrossed = base[0] >= H;
   let crossed = everCrossed;
   let firstCrossTime = everCrossed ? 0 : T;
   let Ib2b = 0;
@@ -861,12 +815,12 @@ customScenario = {
   let tB2b = 0;
   let tFee = 0;
   for (let k = 1; k < nPoints; k++) {
-    const sprev = realised[k - 1];
-    const piece = 0.5 * (sprev + realised[k]) * dt;
+    const sprev = base[k - 1];
+    const piece = 0.5 * (sprev + base[k]) * dt;
     const prevAbove = sprev >= H;
     if (prevAbove) { Ifee += piece; tFee += dt; }
     else           { Ib2b += piece; tB2b += dt; }
-    const currAbove = realised[k] >= H;
+    const currAbove = base[k] >= H;
     if (currAbove && !everCrossed) {
       firstCrossTime = k * dt;
       everCrossed = true;
@@ -878,13 +832,13 @@ customScenario = {
 
   let maxS = -Infinity, minS = Infinity;
   for (let k = 0; k < nPoints; k++) {
-    if (realised[k] > maxS) maxS = realised[k];
-    if (realised[k] < minS) minS = realised[k];
+    if (base[k] > maxS) maxS = base[k];
+    if (base[k] < minS) minS = base[k];
   }
   const meanS = IT / T;
 
   return {
-    base, realised, nPoints, IT, tailInt, ST, tauFrac, tokensLeftover,
+    base, nPoints, IT, tailInt, ST, tauFrac, tokensLeftover,
     feeRev, b2bOp, treasury, customDesk, retainedOp, switchingOp,
     crossed, firstCrossTime, tB2b, tFee, Ib2b, Ifee,
     maxS, minS, meanS,
@@ -892,8 +846,7 @@ customScenario = {
 }
 ```
 
-_Orange: drawn base. Blue ($\sigma^2_{\mathrm{noise}} > 0$): noisy
-realised path._
+_Orange: drawn base._
 
 ### Carbon price
 
@@ -902,24 +855,16 @@ The same path rescaled to $\pi_t = S_t \cdot P$ (USD / tonne).
 ```{ojs}
 //| echo: false
 carbonPriceRecords = {
-  const { values, realised, nPoints } = customCurve;
-  const sigmaN = Math.sqrt(curveVar);
-  const hasNoise = sigmaN > 0;
+  const { values, nPoints } = customCurve;
   const hasCloud = (lambdaJ > 0) || (derived.sigma > 0);
   const dtDays = Tdays / (nPoints - 1);
   const toTonne = (s) => s * P;
 
   const baseRows = new Array(nPoints);
-  const realisedRows = hasNoise ? new Array(nPoints) : [];
   for (let i = 0; i < nPoints; i++) {
     baseRows[i] = { tDays: i * dtDays, price: toTonne(values[i]), id: "base" };
-    if (hasNoise) {
-      realisedRows[i] = { tDays: i * dtDays, price: toTonne(realised[i]), id: "realised" };
-    }
   }
 
-  // Same construction as the canvas cell; bit-identical under equal
-  // (seed, μ, σ, λ_J, μ_J, σ_J).
   const cloudRows = [];
   if (hasCloud) {
     const N_CLOUD = 20;
@@ -940,7 +885,7 @@ carbonPriceRecords = {
     }
   }
 
-  return { baseRows, realisedRows, cloudRows, hasNoise, hasCloud };
+  return { baseRows, cloudRows, hasCloud };
 }
 ```
 
@@ -968,10 +913,6 @@ Plot.plot({
       : []),
     Plot.line(carbonPriceRecords.baseRows,
       { x: "tDays", y: "price", stroke: "#c94", strokeWidth: 2 }),
-    ...(carbonPriceRecords.hasNoise
-      ? [Plot.line(carbonPriceRecords.realisedRows,
-          { x: "tDays", y: "price", stroke: "#36c", strokeWidth: 1.5, strokeOpacity: 0.9 })]
-      : []),
     Plot.ruleX([run.tauFrac * Tdays],
       { stroke: "#2a7", strokeDasharray: "4 3", strokeWidth: 2 }),
     ...(switchOn
@@ -982,10 +923,9 @@ Plot.plot({
 })
 ```
 
-_Orange: drawn, rescaled by $P$. Blue: noise-realised path.
-Grey: 20 GBM samples. Green dashed: $\alpha T$.
-Maroon dashed: fee-mode threshold $\pi_H = h S_0 P$ in carbon-price
-units (fee mode above this line)._
+_Orange: drawn, rescaled by $P$. Grey: 20 GBM samples. Green dashed:
+$\alpha T$. Maroon dashed: fee-mode threshold $\pi_H = h S_0 P$ in
+carbon-price units (fee mode above this line)._
 
 ### P&L along the path
 
@@ -995,7 +935,7 @@ $\alpha T$, the switching book at $\tau$.
 ```{ojs}
 //| echo: false
 pnlOverTime = {
-  const { realised, nPoints } = customCurve;
+  const { values: realised, nPoints } = customCurve;
   const T = derived.T;
   const lam = derived.lambda;
   const dt = T / (nPoints - 1);
@@ -1162,8 +1102,8 @@ Inputs.table(customRows, {
 ```
 
 _**drawn**: P&L on the sketched path. **MC mean**: $\mathbb{E}[\Pi]$
-at defaults ($\mu = 0.05$, $\sigma^2 = 0.25$, no jumps, 5,000 paths).
-**diff** = drawn − MC mean._
+at defaults ($\mu = -0.1$, $\sigma^2 = 0.0625$, $\lambda_J = 20$,
+5,000 paths). **diff** = drawn − MC mean._
 
 Negative diff on `custom desk` indicates the token was pricier over
 $[\alpha T, T]$ than GBM expects on average. At full coverage the

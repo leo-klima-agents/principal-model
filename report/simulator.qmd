@@ -20,29 +20,37 @@ $\lambda_J = 0$ recovering pure GBM.
 
 ```{ojs}
 //| echo: false
-viewof pi0 = Inputs.range([0, 500], { step: 1, value: 125, label: "π₀ (USD / tonne)" })
+viewof pi0 = Inputs.range([0.1, 10000], { step: 0.01, value: 125, transform: Math.log, label: "π₀ (USD / tonne)" })
 ```
 
 ```{ojs}
 //| echo: false
-viewof P = Inputs.range([100, 25000], { step: 10, value: 2160, label: "P (kVCM / tonne)" })
+viewof P = Inputs.range([1, 100000], { step: 0.01, value: 2000, transform: Math.log, label: "P (kVCM / tonne)" })
 ```
 
 ```{ojs}
 //| echo: false
-viewof mu = Inputs.range([-1, 1], { step: 0.005, value: -0.1, label: "drift μ (annualised)" })
+viewof mu = Inputs.range([-2, 2], { step: 0.005, value: -0.1, label: "drift μ (annualised)" })
 ```
 
 ```{ojs}
 //| echo: false
-viewof sigma2 = Inputs.range([0, 3], { step: 0.005, value: 0.06, label: "variance σ² (annualised)" })
+viewof sigma2 = Inputs.range([0, 10], {
+  step: 0.001, value: 0.0625, label: "variance σ² (annualised)",
+  transform: x => Math.log(x + 1e-3),
+  invert: y => Math.max(0, Math.exp(y) - 1e-3),
+})
 ```
 
 ### Jumps (Merton)
 
 ```{ojs}
 //| echo: false
-viewof lambdaJ = Inputs.range([0, 50], { step: 0.1, value: 20, label: "jump intensity λ_J (/yr)" })
+viewof lambdaJ = Inputs.range([0, 100], {
+  step: 0.01, value: 20, label: "jump intensity λ_J (/yr)",
+  transform: x => Math.log(x + 1e-3),
+  invert: y => Math.max(0, Math.exp(y) - 1e-3),
+})
 ```
 
 ```{ojs}
@@ -59,17 +67,17 @@ viewof sigmaJ = Inputs.range([0, 1], { step: 0.01, value: 0.35, label: "log-jump
 
 ```{ojs}
 //| echo: false
-viewof lambdaDay = Inputs.range([0, 50], { step: 0.1, value: 1, label: "retirements (tonnes / day)" })
+viewof lambdaDay = Inputs.range([0.001, 10000], { step: 0.001, value: 1, transform: Math.log, label: "retirements (tonnes / day)" })
 ```
 
 ```{ojs}
 //| echo: false
-viewof kPre = Inputs.range([0, 2000000], { step: 1000, value: 300000, label: "initial inventory (kVCM)" })
+viewof kPre = Inputs.range([0, 1000000], { step: 1000, value: 300000, label: "initial inventory (kVCM)" })
 ```
 
 ```{ojs}
 //| echo: false
-viewof cBasis = Inputs.range([0, 1000000], { step: 100, value: 21000, label: "inventory basis (USD, total)" })
+viewof cBasis = Inputs.range([0, 100000], { step: 100, value: 20000, label: "inventory basis (USD, total)" })
 ```
 
 ### Contract
@@ -81,7 +89,7 @@ viewof Tdays = Inputs.range([30, 1095], { step: 5, value: 365, label: "horizon T
 
 ```{ojs}
 //| echo: false
-viewof Q = Inputs.range([0, 1000], { step: 0.5, value: 180, label: "fixed quote Q (USD / tonne)" })
+viewof Q = Inputs.range([0.1, 10000], { step: 0.01, value: 175, transform: Math.log, label: "fixed quote Q (USD / tonne)" })
 ```
 
 ```{ojs}
@@ -161,10 +169,10 @@ viewof seed = Inputs.range([1, 9999], { step: 1, value: 42, label: "PRNG seed" }
 //| echo: false
 mcResetButton = {
   const defaults = {
-    pi0: 125, P: 2160, mu: -0.1, sigma2: 0.06,
+    pi0: 125, P: 2000, mu: -0.1, sigma2: 0.0625,
     lambdaJ: 20, muJ: -0.05, sigmaJ: 0.35,
-    lambdaDay: 1, kPre: 300000, cBasis: 21000,
-    Tdays: 365, Q: 180, fee: 0.4,
+    lambdaDay: 1, kPre: 300000, cBasis: 20000,
+    Tdays: 365, Q: 175, fee: 0.4,
     beta: 0, theta: 0, premiumMode: "sharpe",
     switchOn: false, barrierRatioSlider: 1.25,
     feePostLocked: true, feePostSlider: 0.4,

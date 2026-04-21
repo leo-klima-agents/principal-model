@@ -177,7 +177,7 @@ $$
 
 The two books' variances therefore satisfy
 $\mathrm{Var}[\Pi_{\mathrm{b2b}}] / \mathrm{Var}[R_{\mathrm{fee}}] =
-(P/f)^2$ exactly, so one Monte Carlo pass prices both. Upside is
+1 / f^2$ exactly, so one Monte Carlo pass prices both. Upside is
 capped at $Q N$, downside is unbounded. The position is economically
 equivalent to shorting a continuous strip of forwards on kVCM struck
 at $Q / P$.

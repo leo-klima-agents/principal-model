@@ -37,11 +37,11 @@ describe("operating books: closed form ↔ MC", () => {
     expect(Math.abs(s.mean - cf.b2b.mean)).toBeLessThan(4 * s.stderr);
   });
 
-  it("Var[Π_b2b] / Var[R_fee] = (P/f)²", () => {
+  it("Var[Π_b2b] / Var[R_fee] = 1/f²", () => {
     const sB = summarize(mc.b2b);
     const sF = summarize(mc.fee);
     const ratio = sB.variance / sF.variance;
-    const expectedRatio = (p.P / p.f) ** 2;
+    const expectedRatio = (1 / p.f) ** 2;
     expect(Math.abs(ratio - expectedRatio) / expectedRatio).toBeLessThan(0.01);
   });
 });
@@ -256,9 +256,10 @@ describe("syndicated-on-b2b operating book", () => {
     const mc = simulate(p);
     const cf = closedForm(p);
     const s = summarize(mc.retained);
-    expect(s.variance).toBeLessThan(1e-12);
-    expect(s.mean).toBeCloseTo(cf.premium.loaded, 10);
-    expect(cf.premium.fair).toBeCloseTo(cf.b2b.mean, 10);
+    const scale = Math.max(1, Math.abs(cf.premium.loaded));
+    expect(s.variance / (scale * scale)).toBeLessThan(1e-20);
+    expect(Math.abs(s.mean - cf.premium.loaded) / scale).toBeLessThan(1e-10);
+    expect(cf.premium.fair).toBeCloseTo(cf.b2b.mean, 6);
   });
 
   it("mean and variance match closed form for arbitrary (β, θ)", () => {
