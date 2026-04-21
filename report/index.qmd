@@ -386,6 +386,8 @@ switchRun = {
 }
 ```
 
+::: {.callout-note .chart-collapsible collapse="false" appearance="minimal" icon=false title="Drawn path"}
+
 ```{ojs}
 //| echo: false
 viewof customCurve = {
@@ -741,6 +743,8 @@ viewof customCurve = {
 }
 ```
 
+:::
+
 ```{ojs}
 //| echo: false
 customScenario = {
@@ -860,6 +864,8 @@ carbonPriceRecords = {
 }
 ```
 
+::: {.callout-note .chart-collapsible collapse="false" appearance="minimal" icon=false title="Chart"}
+
 ```{ojs}
 //| echo: false
 Plot.plot({
@@ -908,6 +914,8 @@ Plot.plot({
   ],
 })
 ```
+
+:::
 
 ### P&L along the path
 
@@ -990,6 +998,8 @@ pnlOverTime = {
 }
 ```
 
+::: {.callout-note .chart-collapsible collapse="false" appearance="minimal" icon=false title="Chart"}
+
 ```{ojs}
 //| echo: false
 Plot.plot({
@@ -1041,10 +1051,14 @@ _Operating books start at 0; treasury opens at MTM $k S_0 -
 C_{\mathrm{basis}}$. Switching slope alternates at each $H = h S_0$
 crossing._
 
+:::
+
 ### Terminal P&L
 
 One-point statistics for each curve, pairing the drawn-curve P&L
 with the Monte Carlo mean.
+
+::: {.callout-note .chart-collapsible collapse="false" appearance="minimal" icon=false title="Summary cards"}
 
 ```{ojs}
 //| echo: false
@@ -1055,6 +1069,8 @@ html`<div class="derived-stats">
   <div class="card"><div class="label">tail integral ∫_{αT}^{T} S_t dt</div><div class="value">${customScenario.tailInt.toFixed(4)}</div></div>
 </div>`
 ```
+
+:::
 
 ```{ojs}
 //| echo: false

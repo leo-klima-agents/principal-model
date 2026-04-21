@@ -217,6 +217,45 @@ nav#TOC > ul { font-size: 0.78rem; }
   font-size: 1.1rem;
 }
 
+/* --- Collapsible chart callouts ----------------------------------------- */
+/* Charts on the landing page are wrapped in
+   `::: {.callout-note .chart-collapsible appearance="minimal"}` so each one
+   can be individually collapsed by the reader. The goal on narrow viewports
+   is that any remaining chart sits flush against the Terminal P&L table
+   without extra callout chrome. */
+
+.callout.chart-collapsible {
+  border: none;
+  margin: 0.25rem 0 1rem;
+}
+
+/* Header row: small clickable strip. Bootstrap/Quarto defaults give it a
+   heavy title weight; dial it down so it reads as a disclosure control
+   rather than a second heading above the existing h3. */
+.callout.chart-collapsible .callout-header {
+  padding: 0.15rem 0.25rem;
+  background: transparent;
+  cursor: pointer;
+  font-size: 0.8rem;
+  color: #555;
+  border: none;
+  border-bottom: 1px dashed #e0e0e0;
+}
+.callout.chart-collapsible .callout-header:hover {
+  color: #111;
+  border-bottom-color: #999;
+}
+.callout.chart-collapsible .callout-title-container {
+  font-weight: 500;
+}
+
+/* Body: strip the indent that Quarto adds for regular callouts so the
+   chart aligns with the prose column above it. */
+.callout.chart-collapsible .callout-body-container,
+.callout.chart-collapsible .callout-body {
+  padding: 0.5rem 0 0;
+}
+
 /* --- Switching palette --------------------------------------------------- */
 /* Shared muted tones for anything describing the switching book across the
    report: threshold rules on plots, fee-mode overlays, sweep curves.
