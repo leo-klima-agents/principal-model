@@ -121,6 +121,14 @@ buildDate = {
 }
 ```
 
+```{ojs}
+//| echo: false
+// Default leftmost date shown on the historical-price canvas on first
+// load and on "Reset to defaults". The T slider still scrolls out to
+// the full fetched history.
+defaultLeftmostDate = new Date(Date.UTC(2025, 10, 1))
+```
+
 ::: {.side-panel-left .side-panel .pc-controls}
 ### Price process
 
@@ -196,11 +204,15 @@ viewof Tdays = {
   const hist = (historicalPrices && Array.isArray(historicalPrices.data))
     ? historicalPrices.data
     : [];
-  const fallback = 365;
+  const DAY_MS = 86400000;
+  const MAX_TDAYS = 1095;
+  const fromDefault = Math.round(
+    (buildDate.getTime() - defaultLeftmostDate.getTime()) / DAY_MS
+  );
   const dflt = hist.length >= 2
-    ? Math.max(30, Math.min(1095, hist.length - 1))
-    : fallback;
-  return Inputs.range([30, 1095], { step: 1, value: dflt, label: "horizon T (days)" });
+    ? Math.max(30, Math.min(MAX_TDAYS, hist.length - 1, fromDefault))
+    : 365;
+  return Inputs.range([30, MAX_TDAYS], { step: 1, value: dflt, label: "horizon T (days)" });
 }
 ```
 
@@ -281,8 +293,13 @@ findingsResetButton = {
   const hist = (historicalPrices && Array.isArray(historicalPrices.data))
     ? historicalPrices.data
     : [];
+  const DAY_MS = 86400000;
+  const MAX_TDAYS = 1095;
+  const fromDefault = Math.round(
+    (buildDate.getTime() - defaultLeftmostDate.getTime()) / DAY_MS
+  );
   const defaultTdays = hist.length >= 2
-    ? Math.max(30, Math.min(1095, hist.length - 1))
+    ? Math.max(30, Math.min(MAX_TDAYS, hist.length - 1, fromDefault))
     : 365;
   const defaults = {
     pi0: 125, P: 1400,
