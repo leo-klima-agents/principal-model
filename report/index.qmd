@@ -126,7 +126,7 @@ buildDate = {
 // Default leftmost date shown on the historical-price canvas on first
 // load and on "Reset to defaults". The T slider still scrolls out to
 // the full fetched history.
-defaultLeftmostDate = new Date(Date.UTC(2025, 10, 1))
+defaultLeftmostDate = new Date(Date.UTC(2025, 11, 1))
 ```
 
 ::: {.side-panel-left .side-panel .pc-controls}
